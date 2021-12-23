@@ -41,7 +41,7 @@ contract TestStrategy is Strategy {
     }
 
     function _getPrice() public view returns (uint256) {
-        return _getWantTokenPrice();
+        return _getWantUSDPrice();
     }
 
     function _getCurrentMakerVaultRatio() public view returns (uint256) {

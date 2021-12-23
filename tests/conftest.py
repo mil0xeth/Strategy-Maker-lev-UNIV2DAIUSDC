@@ -7,6 +7,7 @@ from brownie import config, convert, interface, Contract
 #3.: yieldBearinToken in NewStrategy.sol is currently manually set, automatically set externally: setFunction, constructor, intializing
 #4.: Remove SIZE OPTIMISATION
 #5.: Referal: Functions, YieldBearing setFunction? Constructor
+#6.: Why is _checkAllowance setting first allowance to zero, then to max? Why not immediately to max?
 #################
 #Decide on Strategy Contract
 @pytest.fixture(autouse=True)
@@ -32,7 +33,7 @@ def wantNr():
 #Decide on yieldBearingToken = collateral Token on Money Market
 @pytest.fixture(autouse=True)
 def yieldBearingNr():    
-    yieldBearingNr = 1 #Currently: WETH
+    yieldBearingNr = 3 #Currently: WETH
     #0 = ETH,   1 = WETH,   2 = stETH,     3 = wstETH 
     yield yieldBearingNr
 #######################################################
@@ -270,7 +271,7 @@ def new_dai_yvault(pm, gov, rewards, guardian, management, dai):
 @pytest.fixture
 def osmProxy_want():
     # Allow the strategy to query the OSM proxy
-    osm = Contract("0xCF63089A8aD2a9D8BD6Bb8022f3190EB7e1eD0f1")   # Points to ETH
+    osm = Contract("0xCF63089A8aD2a9D8BD6Bb8022f3190EB7e1eD0f1")   # Points to ETH/USD
     yield osm
 
 @pytest.fixture
