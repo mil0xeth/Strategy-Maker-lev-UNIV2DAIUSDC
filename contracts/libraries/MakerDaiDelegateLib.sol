@@ -6,9 +6,13 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 
 import "../../interfaces/maker/IMaker.sol";
+import "../../interfaces/UniswapInterfaces/IWETH.sol";
 
 library MakerDaiDelegateLib {
     using SafeMath for uint256;
+
+    //eth wrapping & unwrapping interface
+    IWETH public constant ethwrapping = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
     // Units used in Maker contracts
     uint256 internal constant WAD = 10**18;
@@ -38,6 +42,28 @@ library MakerDaiDelegateLib {
         DssAutoLine(0xC7Bdd1F2B16447dcf3dE045C4a039A60EC2f0ba3);
 
     // ----------------- PUBLIC FUNCTIONS -----------------
+
+    // WRAPPING/SWAPPING FUNCTIONS:
+    function ethunwrap(
+        uint256 _amount
+    ) public {
+        ethwrapping.withdraw(_amount);
+    }
+
+    function ethwrap(
+        uint256 _amount
+    ) public {
+        ethwrapping.deposit{value: _amount}();
+    }
+
+
+
+
+
+
+
+
+
 
     // Creates an UrnHandler (cdp) for a specific ilk and allows to manage it via the internal
     // registry of the manager.

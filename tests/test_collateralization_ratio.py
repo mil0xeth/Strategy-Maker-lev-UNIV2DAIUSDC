@@ -37,6 +37,7 @@ def test_lower_ratio_inside_rebalancing_band_should_not_take_more_debt(
     vault, strategy, token, yvault, amount, user, gov
 ):
     # Deposit to the vault
+    assert token.balanceOf(vault) == 0
     token.approve(vault.address, amount, {"from": user})
     vault.deposit(amount, {"from": user})
 
@@ -213,14 +214,15 @@ def test_tend_trigger_conditions(
     strategy.setMaxAcceptableBaseFee(1001 * 1e9, {"from": strategy.strategist()})
     assert strategy.tendTrigger(1) == False
 
-    token.approve(vault.address, 2 ** 256 - 1, {"from": token_whale})
-    vault.deposit(Wei("100_000 ether"), {"from": token_whale})
+
+
+    #token.approve(vault.address, 2 ** 256 - 1, {"from": token_whale})
+    #vault.deposit(Wei("10_000 ether"), {"from": token_whale})
 
     # Send the funds through the strategy to invest
-    chain.sleep(1)
-    strategy.harvest({"from": gov})
+    #chain.sleep(1)
+    #strategy.harvest({"from": gov})
 
-    assert strategy.tendTrigger(1) == False
 
 
 def test_ratio_lower_than_liquidation_should_revert(strategy, gov):

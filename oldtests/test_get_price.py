@@ -19,7 +19,7 @@ def test_osm_reverts_should_use_spot(test_strategy, custom_osm, lib):
     price = test_strategy._getPrice()
 
     assert price > 0
-    assert price == lib.getSpotPrice(test_strategy.ilk())
+    assert price == lib.getSpotPrice(test_strategy.ilk_want())
 
 
 def test_current_osm_reverts_should_use_min_future_and_spot(
@@ -28,7 +28,7 @@ def test_current_osm_reverts_should_use_min_future_and_spot(
     test_strategy.setCustomOSM(custom_osm)
     osm = interface.IOSMedianizer(test_strategy.wantToUSDOSMProxy())
 
-    spot = lib.getSpotPrice(test_strategy.ilk())
+    spot = lib.getSpotPrice(test_strategy.ilk_want())
 
     custom_osm.setCurrentPrice(0, True)
     with reverts():
@@ -52,7 +52,7 @@ def test_future_osm_reverts_should_use_min_future_and_spot(
     test_strategy.setCustomOSM(custom_osm)
     osm = interface.IOSMedianizer(test_strategy.wantToUSDOSMProxy())
 
-    spot = lib.getSpotPrice(test_strategy.ilk())
+    spot = lib.getSpotPrice(test_strategy.ilk_want())
 
     custom_osm.setFuturePrice(0, True)
     with reverts():
@@ -75,7 +75,7 @@ def test_get_price_should_return_min_price(
     test_strategy.setCustomOSM(custom_osm)
     osm = interface.IOSMedianizer(test_strategy.wantToUSDOSMProxy())
 
-    spot = lib.getSpotPrice(test_strategy.ilk())
+    spot = lib.getSpotPrice(test_strategy.ilk_want())
 
     custom_osm.setFuturePrice(spot + 1e18, False)
     custom_osm.setCurrentPrice(spot + 1e18, False)

@@ -15,8 +15,11 @@ def test_ape_tax(
     dai_whale,
     gov,
     gemJoinAdapter,
-    osmProxy,
-    price_oracle_eth,
+    osmProxy_want,
+    osmProxy_yieldBearing,
+    price_oracle_want_to_eth,
+    ilk_want,
+    ilk_yieldBearing
 ):
     vault = Contract("0x5120FeaBd5C21883a4696dBCC5D123d6270637E9")
     daddy = gov
@@ -29,10 +32,13 @@ def test_ape_tax(
         strategist,
         yvault,
         f"StrategyMaker{weth.symbol()}",
-        encode_single("bytes32", b"ETH-C"),
+      #  encode_single("bytes32", b"ETH-C"),
+        ilk_want,
+        ilk_yieldBearing,
         gemJoinAdapter,
-        osmProxy,
-        price_oracle_eth,
+        osmProxy_want,
+        osmProxy_yieldBearing,
+        price_oracle_want_to_eth,
         {"from": strategist},
     )
 
@@ -41,7 +47,8 @@ def test_ape_tax(
     )
 
     # White-list the strategy in the OSM!
-    osmProxy.setAuthorized(cloned_strategy, {"from": daddy})
+    osmProxy_want.setAuthorized(cloned_strategy, {"from": daddy})
+    osmProxy_yieldBearing.setAuthorized(cloned_strategy, {"from": daddy})
 
     # Reduce other strategies debt allocation
     for i in range(0, 20):
@@ -73,7 +80,9 @@ def test_ape_tax(
     chain.mine(1)
 
     # Send some profit to yvDAI
-    dai.transfer(yvault, yvault.totalDebt() * 0.01, {"from": dai_whale})
+    #Doesn't work: totalDebt() not a function
+    #dai.transfer(yvault, yvault.totalDebt() * 0.01, {"from": dai_whale})
+    dai.transfer(yvault, "1000 ether", {"from": dai_whale})
     cloned_strategy.setLeaveDebtBehind(False, {"from": gov})
     tx = cloned_strategy.harvest({"from": gov})
 

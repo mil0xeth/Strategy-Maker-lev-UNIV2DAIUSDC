@@ -33,9 +33,11 @@ def test_migration(
             strategist,
             yvault,
             "name",
-            strategy.ilk(),
+            strategy.ilk_want(),
+            strategy.ilk_yieldBearing(),
             strategy.gemJoinAdapter(),
             strategy.wantToUSDOSMProxy(),
+            strategy.yieldBearingToUSDOSMProxy(),
             strategy.chainlinkWantToETHPriceFeed(),
         ).return_value
     )
@@ -43,8 +45,10 @@ def test_migration(
     vault.migrateStrategy(strategy, new_strategy, {"from": gov})
 
     # Allow the new strategy to query the OSM proxy
-    osmProxy = Contract(strategy.wantToUSDOSMProxy())
-    osmProxy.setAuthorized(new_strategy, {"from": gov})
+    osmProxy_want = Contract(strategy.wantToUSDOSMProxy())
+    osmProxy_yieldBearing = Contract(strategy.yieldBearingToUSDOSMProxy())
+    osmProxy_want.setAuthorized(new_strategy, {"from": gov})
+    osmProxy_yieldBearing.setAuthorized(new_strategy, {"from": gov})
 
     orig_cdp_id = strategy.cdpId()
     new_strategy.shiftToCdp(orig_cdp_id, {"from": gov})

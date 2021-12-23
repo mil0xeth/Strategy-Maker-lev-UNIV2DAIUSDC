@@ -11,9 +11,12 @@ def test_double_init_should_revert(
     strategist,
     token,
     gemJoinAdapter,
-    osmProxy,
-    price_oracle_eth,
+    osmProxy_want,
+    osmProxy_yieldBearing,
+    price_oracle_want_to_eth,
     gov,
+    ilk_want,
+    ilk_yieldBearing
 ):
     clone_tx = cloner.cloneMakerDaiDelegate(
         vault,
@@ -22,10 +25,12 @@ def test_double_init_should_revert(
         strategist,
         yvault,
         f"StrategyMaker{token.symbol()}",
-        "0x5946492d41000000000000000000000000000000000000000000000000000000",
+        ilk_want,
+        ilk_yieldBearing,
         gemJoinAdapter,
-        osmProxy,
-        price_oracle_eth,
+        osmProxy_want,
+        osmProxy_yieldBearing,
+        price_oracle_want_to_eth,
     )
 
     cloned_strategy = Contract.from_abi(
@@ -37,10 +42,12 @@ def test_double_init_should_revert(
             vault,
             yvault,
             "NameRevert",
-            "0x5946492d41000000000000000000000000000000000000000000000000000000",
+            ilk_want,
+            ilk_yieldBearing,
             gemJoinAdapter,
-            osmProxy,
-            price_oracle_eth,
+            osmProxy_want,
+            osmProxy_yieldBearing,
+            price_oracle_want_to_eth,
             {"from": gov},
         )
 
@@ -49,10 +56,12 @@ def test_double_init_should_revert(
             vault,
             yvault,
             "NameRevert",
-            "0x5946492d41000000000000000000000000000000000000000000000000000000",
+            ilk_want,
+            ilk_yieldBearing,
             gemJoinAdapter,
-            osmProxy,
-            price_oracle_eth,
+            osmProxy_want,
+            osmProxy_yieldBearing,
+            price_oracle_want_to_eth,
             {"from": gov},
         )
 
@@ -68,9 +77,12 @@ def test_clone(
     dai,
     dai_whale,
     gemJoinAdapter,
-    osmProxy,
-    price_oracle_eth,
+    osmProxy_want,
+    osmProxy_yieldBearing,
+    price_oracle_want_to_eth,
     gov,
+    ilk_want,
+    ilk_yieldBearing
 ):
     clone_tx = cloner.cloneMakerDaiDelegate(
         vault,
@@ -79,10 +91,12 @@ def test_clone(
         strategist,
         yvault,
         f"StrategyMaker{token.symbol()}",
-        strategy.ilk(),
+        ilk_want,
+        ilk_yieldBearing,
         gemJoinAdapter,
-        osmProxy,
-        price_oracle_eth,
+        osmProxy_want,
+        osmProxy_yieldBearing,
+        price_oracle_want_to_eth,
     )
 
     cloned_strategy = Contract.from_abi(
@@ -90,7 +104,8 @@ def test_clone(
     )
 
     # White-list the strategy in the OSM!
-    osmProxy.setAuthorized(cloned_strategy, {"from": gov})
+    osmProxy_want.setAuthorized(cloned_strategy, {"from": gov})
+    osmProxy_yieldBearing.setAuthorized(cloned_strategy, {"from": gov})
 
     vault.updateStrategyDebtRatio(strategy, 0, {"from": gov})
     vault.addStrategy(cloned_strategy, 10_000, 0, 2 ** 256 - 1, 0, {"from": gov})
@@ -116,7 +131,7 @@ def test_clone(
     assert vault.strategies(cloned_strategy).dict()["totalLoss"] == 0
 
 
-def test_clone_of_clone(strategy, cloner, yvault, strategist, token, osmProxy):
+def test_clone_of_clone(strategy, cloner, yvault, strategist, token, osmProxy_want, osmProxy_yieldBearing, ilk_want, ilk_yieldBearing):
     # Do not have OSM proxy for UNI - passing YFI's to test
     gemJoinUNI = Contract("0x3BC3A58b4FC1CbE7e98bB4aB7c99535e8bA9b8F1")
     token = Contract("0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984")
@@ -131,9 +146,11 @@ def test_clone_of_clone(strategy, cloner, yvault, strategist, token, osmProxy):
         strategist,
         yvault,
         f"StrategyMaker{token.symbol()}",
-        "0x554e492d41000000000000000000000000000000000000000000000000000000",
+        ilk_want,
+        ilk_yieldBearing,
         gemJoinUNI,
-        osmProxy,
+        osmProxy_want,
+        osmProxy_yieldBearing,
         chainlinkUNIToETH,
     )
 
@@ -145,9 +162,10 @@ def test_clone_of_clone(strategy, cloner, yvault, strategist, token, osmProxy):
     assert cloned_strategy.yVault() == yvault
     assert cloned_strategy.name() == "StrategyMakerUNI"
     assert (
-        cloned_strategy.ilk()
-        == "0x554e492d41000000000000000000000000000000000000000000000000000000"
+        cloned_strategy.ilk_want()
+        == ilk_want
     )
-    assert cloned_strategy.wantToUSDOSMProxy() == osmProxy
+    assert cloned_strategy.wantToUSDOSMProxy() == osmProxy_want
+    assert cloned_strategy.yieldBearingToUSDOSMProxy() == osmProxy_yieldBearing
     assert cloned_strategy.chainlinkWantToETHPriceFeed() == chainlinkUNIToETH
     assert cloned_strategy.gemJoinAdapter() == gemJoinUNI

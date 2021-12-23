@@ -19,47 +19,18 @@ import "../interfaces/yearn/IBaseFee.sol";
 import "../interfaces/yearn/IOSMedianizer.sol";
 import "../interfaces/yearn/IVault.sol";
 
-import "../interfaces/curve/Curve.sol";
-import "../interfaces/lido/ISteth.sol";
-import "../interfaces/lido/IWstETH.sol";
-import "../interfaces/UniswapInterfaces/IWETH.sol";
-
 contract Strategy is BaseStrategy {
     using SafeERC20 for IERC20;
     using Address for address;
     using SafeMath for uint256;
 
-
-    event DebugTokenHeldByStrategy(string _string, uint _value);
-    //Hardcoded Options: YieldBearingToken, Referal:
-    //IERC20 internal yieldBearingToken = IERC20(0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0); //WSTETH
-    IWstETH public constant wstETH =  IWstETH(0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0); //IWSTETH Interface wrap & unwrap
-    IERC20 internal yieldBearingToken = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);  //WETH for test
-    //uint256 yieldBearingPremiumPer1k = 1042;
-    uint256 yieldBearingPremiumPer1k = 1000;
-    //Referal 
-    address private referal = 0x35a83D4C1305451E0448fbCa96cAb29A7cCD0811;
-    //SlippageProtection
-    uint256 public slippageProtectionOut = 100;// = 50; //out of 10000. 50 = 0.5%
-
-    //----------- Lido & Curve & DAI INIT
-    ISteth public constant stETH =  ISteth(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84);
-    //Curve ETH/stETH StableSwap
-    ICurveFi public constant StableSwapSTETH = ICurveFi(0xDC24316b9AE028F1497c275EB9192a3Ea0f67022);
-    //int128 private constant WETHID = 0;
-    //int128 private constant STETHID = 1;
-
-    //investmentToken = token to be borrowed and further invested
-    // DAI
-    IERC20 internal constant investmentToken = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
-
-    //ETH to WETH Contract: 1) deposit: wrap ETH --> WETH, 2) withdraw: unwrap WETH --> ETH  
-    IWETH public constant ethwrapping = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
-  
-    //----------- MAKER INIT    
     // Units used in Maker contracts
     uint256 internal constant WAD = 10**18;
     uint256 internal constant RAY = 10**27;
+
+    // DAI token
+    IERC20 internal constant investmentToken =
+        IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
 
     // 100%
     uint256 internal constant MAX_BPS = WAD;
@@ -87,7 +58,6 @@ contract Strategy is BaseStrategy {
 
     // Maker Oracle Security Module
     IOSMedianizer public wantToUSDOSMProxy;
-    IOSMedianizer public yieldBearingToUSDOSMProxy;
 
     // Use Chainlink oracle to obtain latest want/ETH price
     AggregatorInterface public chainlinkWantToETHPriceFeed;
@@ -98,11 +68,8 @@ contract Strategy is BaseStrategy {
     // Router used for swaps
     ISwap public router;
 
-    // Collateral type of want
-    bytes32 public ilk_want;
-
-    // Collateral type of MAKER deposited collateral
-    bytes32 public ilk_yieldBearing;
+    // Collateral type
+    bytes32 public ilk;
 
     // Our vault identifier
     uint256 public cdpId;
@@ -131,21 +98,17 @@ contract Strategy is BaseStrategy {
         address _vault,
         address _yVault,
         string memory _strategyName,
-        bytes32 _ilk_want,
-        bytes32 _ilk_yieldBearing,
+        bytes32 _ilk,
         address _gemJoin,
         address _wantToUSDOSMProxy,
-        address _yieldBearingToUSDOSMProxy,
         address _chainlinkWantToETHPriceFeed
     ) public BaseStrategy(_vault) {
         _initializeThis(
             _yVault,
             _strategyName,
-            _ilk_want,
-            _ilk_yieldBearing,
+            _ilk,
             _gemJoin,
             _wantToUSDOSMProxy,
-            _yieldBearingToUSDOSMProxy,
             _chainlinkWantToETHPriceFeed
         );
     }
@@ -154,11 +117,9 @@ contract Strategy is BaseStrategy {
         address _vault,
         address _yVault,
         string memory _strategyName,
-        bytes32 _ilk_want,
-        bytes32 _ilk_yieldBearing,
+        bytes32 _ilk,
         address _gemJoin,
         address _wantToUSDOSMProxy,
-        address _yieldBearingToUSDOSMProxy,
         address _chainlinkWantToETHPriceFeed
     ) public {
         // Make sure we only initialize one time
@@ -173,11 +134,9 @@ contract Strategy is BaseStrategy {
         _initializeThis(
             _yVault,
             _strategyName,
-            _ilk_want,
-            _ilk_yieldBearing,
+            _ilk,
             _gemJoin,
             _wantToUSDOSMProxy,
-            _yieldBearingToUSDOSMProxy,
             _chainlinkWantToETHPriceFeed
         );
     }
@@ -185,21 +144,16 @@ contract Strategy is BaseStrategy {
     function _initializeThis(
         address _yVault,
         string memory _strategyName,
-        bytes32 _ilk_want,
-        bytes32 _ilk_yieldBearing,
+        bytes32 _ilk,
         address _gemJoin,
         address _wantToUSDOSMProxy,
-        address _yieldBearingToUSDOSMProxy,
         address _chainlinkWantToETHPriceFeed
     ) internal {
         yVault = IVault(_yVault);
         strategyName = _strategyName;
-        //yieldBearingToken = IERC20(_yieldBearingAddr);
-        ilk_want = _ilk_want;
-        ilk_yieldBearing = _ilk_yieldBearing;
+        ilk = _ilk;
         gemJoinAdapter = _gemJoin;
         wantToUSDOSMProxy = IOSMedianizer(_wantToUSDOSMProxy);
-        yieldBearingToUSDOSMProxy = IOSMedianizer(_yieldBearingToUSDOSMProxy);
         chainlinkWantToETHPriceFeed = AggregatorInterface(
             _chainlinkWantToETHPriceFeed
         );
@@ -210,10 +164,10 @@ contract Strategy is BaseStrategy {
         // Set health check to health.ychad.eth
         healthCheck = 0xDDCea799fF1699e98EDF118e0629A974Df7DF012;
 
-        cdpId = MakerDaiDelegateLib.openCdp(ilk_yieldBearing);
+        cdpId = MakerDaiDelegateLib.openCdp(ilk);
         require(cdpId > 0); // dev: error opening cdp
 
-        // Current ratio can drift (collateralizationRatio -f rebalanceTolerance, collateralizationRatio + rebalanceTolerance)
+        // Current ratio can drift (collateralizationRatio - rebalanceTolerance, collateralizationRatio + rebalanceTolerance)
         // Allow additional 15% in any direction (210, 240) by default
         rebalanceTolerance = (15 * MAX_BPS) / 100;
 
@@ -231,11 +185,8 @@ contract Strategy is BaseStrategy {
         maxAcceptableBaseFee = 60 * 1e9;
     }
 
-    //we get eth
-    receive() external payable {}
-
     // ----------------- SETTERS & MIGRATION -----------------
-/*
+
     // Maximum acceptable base fee of current block to take on more debt
     function setMaxAcceptableBaseFee(uint256 _maxAcceptableBaseFee)
         external
@@ -251,7 +202,7 @@ contract Strategy is BaseStrategy {
     {
         require(
             _collateralizationRatio.sub(rebalanceTolerance) >
-                MakerDaiDelegateLib.getLiquidationRatio(ilk_yieldBearing).mul(MAX_BPS).div(
+                MakerDaiDelegateLib.getLiquidationRatio(ilk).mul(MAX_BPS).div(
                     RAY
                 )
         ); // dev: desired collateralization ratio is too low
@@ -265,7 +216,7 @@ contract Strategy is BaseStrategy {
     {
         require(
             collateralizationRatio.sub(_rebalanceTolerance) >
-                MakerDaiDelegateLib.getLiquidationRatio(ilk_yieldBearing).mul(MAX_BPS).div(
+                MakerDaiDelegateLib.getLiquidationRatio(ilk).mul(MAX_BPS).div(
                     RAY
                 )
         ); // dev: desired rebalance tolerance makes allowed ratio too low
@@ -285,7 +236,7 @@ contract Strategy is BaseStrategy {
     {
         leaveDebtBehind = _leaveDebtBehind;
     }
- //SIZE OPTIMISATION 
+
     // Required to move funds to a new cdp and use a different cdpId after migration
     // Should only be called by governance as it will move funds
     function shiftToCdp(uint256 newCdpId) external onlyGovernance {
@@ -300,6 +251,7 @@ contract Strategy is BaseStrategy {
             yVault.withdraw(balanceOfYVault, address(this), maxLoss);
         }
         investmentToken.safeApprove(address(yVault), 0);
+
         yVault = newYVault;
         _depositInvestmentTokenInYVault();
     }
@@ -343,7 +295,7 @@ contract Strategy is BaseStrategy {
     {
         _repayInvestmentTokenDebt(amount);
     }
-*/
+
     // ******** OVERRIDEN METHODS FROM BASE CONTRACT ************
 
     function name() external view override returns (string memory) {
@@ -354,15 +306,13 @@ contract Strategy is BaseStrategy {
         return _convertInvestmentTokenToWant(_valueOfInvestment());
     }
 
-    function estimatedTotalAssets() public view override returns (uint256) {  //measured in WANT
+    function estimatedTotalAssets() public view override returns (uint256) {
         return
-            balanceOfWant()   //free WANT balance in wallet
-                .add(ethToWant(address(this).balance))  //free ETH balance in wallet
-                //.add(_convertYieldBearingToWant(balanceOfYieldBearing())) // NEW: free yieldBearing in wallet --> WANT
-                .add(_convertYieldBearingToWant(balanceOfMakerVault()))   //Collateral on Maker --> yieldBearing --> WANT 
-                .add(_convertInvestmentTokenToWant(balanceOfInvestmentToken()))  // free DAI balance in wallet --> WANT
-                .add(_convertInvestmentTokenToWant(_valueOfInvestment()))  //locked yvDAI shares --> DAI --> WANT
-                .sub(_convertInvestmentTokenToWant(balanceOfDebt()));  //DAI debt of maker --> WANT
+            balanceOfWant()
+                .add(balanceOfMakerVault())
+                .add(_convertInvestmentTokenToWant(balanceOfInvestmentToken()))
+                .add(_convertInvestmentTokenToWant(_valueOfInvestment()))
+                .sub(_convertInvestmentTokenToWant(balanceOfDebt()));
     }
 
     function prepareReturn(uint256 _debtOutstanding)
@@ -408,18 +358,15 @@ contract Strategy is BaseStrategy {
         }
     }
 
-
     function adjustPosition(uint256 _debtOutstanding) internal override {
-        // Update accumulated stability fees,  Update the debt ceiling using DSS Auto Line
-        MakerDaiDelegateLib.keepBasicMakerHygiene(ilk_yieldBearing);
+        MakerDaiDelegateLib.keepBasicMakerHygiene(ilk);
 
         // If we have enough want to deposit more into the maker vault, we do it
         // Do not skip the rest of the function as it may need to repay or take on more debt
         uint256 wantBalance = balanceOfWant();
         if (wantBalance > _debtOutstanding) {
-            //Determine amount of Want to Deposit
-            uint256 amountOfWantToDeposit = wantBalance.sub(_debtOutstanding);
-            _depositToMakerVault(amountOfWantToDeposit);
+            uint256 amountToDeposit = wantBalance.sub(_debtOutstanding);
+            _depositToMakerVault(amountToDeposit);
         }
 
         // Allow the ratio to move a bit in either direction to avoid cycles
@@ -536,7 +483,7 @@ contract Strategy is BaseStrategy {
             currentRatio > collateralizationRatio.add(rebalanceTolerance) &&
             balanceOfDebt() > 0 &&
             isCurrentBaseFeeAcceptable() &&
-            MakerDaiDelegateLib.isDaiAvailableToMint(ilk_yieldBearing);
+            MakerDaiDelegateLib.isDaiAvailableToMint(ilk);
     }
 
     function prepareMigration(address _newStrategy) internal override {
@@ -597,7 +544,7 @@ contract Strategy is BaseStrategy {
         // Maker will revert if the outstanding debt is less than a debt floor
         // called 'dust'. If we are there we need to either pay the debt in full
         // or leave at least 'dust' balance (10,000 DAI for YFI-A)
-        uint256 debtFloor = MakerDaiDelegateLib.debtFloor(ilk_yieldBearing);
+        uint256 debtFloor = MakerDaiDelegateLib.debtFloor(ilk);
         if (newDebt <= debtFloor) {
             // If we sold want to repay debt we will have DAI readily available in the strategy
             // This means we need to count both yvDAI shares and current DAI balance
@@ -642,7 +589,7 @@ contract Strategy is BaseStrategy {
 
     // Mint the maximum DAI possible for the locked collateral
     function _mintMoreInvestmentToken() internal {
-        uint256 price = _getYieldBearingTokenPrice();
+        uint256 price = _getWantTokenPrice();
         uint256 amount = balanceOfMakerVault();
 
         uint256 daiToMint =
@@ -748,56 +695,18 @@ contract Strategy is BaseStrategy {
         }
     }
 
-    function _depositToMakerVault(uint256 _amount) internal {
-        if (_amount == 0) {
+    function _depositToMakerVault(uint256 amount) internal {
+        if (amount == 0) {
             return;
         }
-        //Exchange WANT to YieldBearing Token to later deposit
-        //!!!!!!PYRAMID UP:
 
-        //---WETH (ethwrapping withdraw) --> ETH 
-        //Unwrap WETH to ETH (to be used in Curve)
-        ethwrapping.withdraw(_amount);                
+        _checkAllowance(gemJoinAdapter, address(want), amount);
 
-        //---ETH (steth.submit OR stableswap01) --> STETH 
-        //test if mint or buy
-        if(StableSwapSTETH.get_dy(0, 1, _amount) < _amount){
-            //LIDO stETH MINT: 
-            stETH.submit{value: _amount}(referal);
-        }else{ 
-            //approve Curve ETH/stETH StableSwap
-            _checkAllowance(address(StableSwapSTETH), address(stETH), _amount);       
-            StableSwapSTETH.exchange{value: _amount}(0, 1, _amount, _amount);
-        }
-
-        //---STETH (wsteth wrap) --> WSTETH
-        _checkAllowance(address(wstETH), address(stETH), stETH.balanceOf(address(this)));
-        wstETH.wrap(stETH.balanceOf(address(this)));
-        //---> all WETH now to WSTETH
-
-
-        //!!!!!!!PYRAMID DOWN:
-        //--WSTETH --> STETH
-        wstETH.unwrap(wstETH.balanceOf(address(this)));
-        //---STEHT --> ETH
-        StableSwapSTETH.exchange(1, 0, _amount, _amount*(10000-slippageProtectionOut)/10000);
-        //StableSwapSTETH.exchange(1, 0, stETH.balanceOf(address(this)), 0);
-        //StableSwapSTETH.exchange(1, 0, _amount, _amount*(10000-slippageProtectionOut)/10000);
-
-        //Re-Wrap it back up: ETH to WETH
-        ethwrapping.deposit{value: address(this).balance}();
-        //emit DebugTokenHeldByStrategy("eth after rewrap", address(this).balance);
-        //emit DebugTokenHeldByStrategy("weth after rewrap", want.balanceOf(address(this)));
-
-        _amount = want.balanceOf(address(this));
-
-        //ORIGINAL FUNCTION REST:
-        _checkAllowance(gemJoinAdapter, address(yieldBearingToken), _amount);
-        uint256 price = _getYieldBearingTokenPrice();
+        uint256 price = _getWantTokenPrice();
         uint256 daiToMint =
-            _amount.mul(price).mul(MAX_BPS).div(collateralizationRatio).div(WAD);
+            amount.mul(price).mul(MAX_BPS).div(collateralizationRatio).div(WAD);
 
-        _lockCollateralAndMintDai(_amount, daiToMint);
+        _lockCollateralAndMintDai(amount, daiToMint);
     }
 
     // Returns maximum collateral to withdraw while maintaining the target collateralization ratio
@@ -839,21 +748,17 @@ contract Strategy is BaseStrategy {
         return want.balanceOf(address(this));
     }
 
-    function balanceOfYieldBearing() public view returns (uint256) {
-        return yieldBearingToken.balanceOf(address(this));
-    }
-
     function balanceOfInvestmentToken() public view returns (uint256) {
         return investmentToken.balanceOf(address(this));
     }
 
     function balanceOfDebt() public view returns (uint256) {
-        return MakerDaiDelegateLib.debtForCdp(cdpId, ilk_yieldBearing);
+        return MakerDaiDelegateLib.debtForCdp(cdpId, ilk);
     }
 
     // Returns collateral balance in the vault
     function balanceOfMakerVault() public view returns (uint256) {
-        return MakerDaiDelegateLib.balanceOfCdp(cdpId, ilk_yieldBearing);
+        return MakerDaiDelegateLib.balanceOfCdp(cdpId, ilk);
     }
 
     // Effective collateralization ratio of the vault
@@ -861,8 +766,8 @@ contract Strategy is BaseStrategy {
         return
             MakerDaiDelegateLib.getPessimisticRatioOfCdpWithExternalPrice(
                 cdpId,
-                ilk_yieldBearing,
-                _getYieldBearingTokenPrice(),
+                ilk,
+                _getWantTokenPrice(),
                 MAX_BPS
             );
     }
@@ -888,7 +793,7 @@ contract Strategy is BaseStrategy {
     // Returns the minimum price available
     function _getWantTokenPrice() internal view returns (uint256) {
         // Use price from spotter as base
-        uint256 minPrice = MakerDaiDelegateLib.getSpotPrice(ilk_want);
+        uint256 minPrice = MakerDaiDelegateLib.getSpotPrice(ilk);
 
         // Peek the OSM to get current price
         try wantToUSDOSMProxy.read() returns (
@@ -923,92 +828,6 @@ contract Strategy is BaseStrategy {
         // 1 unit of value in the price
         return minPrice.mul(RAY).div(MakerDaiDelegateLib.getDaiPar());
     }
-
-    function _getYieldBearingTokenPrice() internal view returns (uint256) {
-        return _getWantTokenPrice().mul(yieldBearingPremiumPer1k).div(1000);
-    }
-
-/* //SIZE OPTIMISATION 
-        // Returns the minimum price available
-    function _getYieldBearingTokenPrice() internal view returns (uint256) {
-        // Use price from spotter as base
-        uint256 minPrice = MakerDaiDelegateLib.getSpotPrice(ilk_yieldBearing);
-
-        // Peek the OSM to get current price
-        try yieldBearingToUSDOSMProxy.read() returns (
-            uint256 current,
-            bool currentIsValid
-        ) {
-            if (currentIsValid && current > 0) {
-                minPrice = Math.min(minPrice, current);
-            }
-        } catch {
-            // Ignore price peek()'d from OSM. Maybe we are no longer authorized.
-        }
-
-        // Peep the OSM to get future price
-        try yieldBearingToUSDOSMProxy.foresight() returns (
-            uint256 future,
-            bool futureIsValid
-        ) {
-            if (futureIsValid && future > 0) {
-                minPrice = Math.min(minPrice, future);
-            }
-        } catch {
-            // Ignore price peep()'d from OSM. Maybe we are no longer authorized.
-        }
-
-        // If price is set to 0 then we hope no liquidations are taking place
-        // Emergency scenarios can be handled via manual debt repayment or by
-        // granting governance access to the CDP
-        require(minPrice > 0); // dev: invalid spot price
-
-        // par is crucial to this calculation as it defines the relationship between DAI and
-        // 1 unit of value in the price
-        return minPrice.mul(RAY).mul(yieldBearingPremiumPer1k).div(1000).div(MakerDaiDelegateLib.getDaiPar());
-    }
-*/
-
-
-
-//TEST FUNCTION
-//    function t_getYieldBearingTokenAddress() public view returns (address) {
-//        return address(yieldBearingToken);
-//    }
-
-//    function t_isDaiAvailableToMint() public view returns (bool) {
-//        return MakerDaiDelegateLib.isDaiAvailableToMint(ilk_yieldBearing);
-//    }
-    // Effective collateralization ratio of the vault: 2.25 at the start
-//    function t_getCurrentMakerVaultRatio() public view returns (uint256) {
-//        return getCurrentMakerVaultRatio();
-//    }
-
-//    function t_getLiquidationRatio() public view returns (uint256) {
-//        MakerDaiDelegateLib.getLiquidationRatio(ilk_yieldBearing).mul(MAX_BPS).div(RAY);
-//    }
-
-
-
-/*    function MakerDaiDelegateLibgetDaiPar() public view returns (uint256) {
-        return MakerDaiDelegateLib.getDaiPar();
-    }
-*/
-/*    
-    function t_getYieldBearingTokenPrice() public view returns (uint256) {
-        return _getYieldBearingTokenPrice();
-    }
-    function t_convertYieldBearingToWant(uint256 amount) public view returns (uint256) {
-        return _convertYieldBearingToWant(amount);
-    }
-    function t_getWantTokenPrice() public view returns (uint256) {
-        return _getWantTokenPrice();
-    }
-*/
-        
-
-
-
 
     function _valueOfInvestment() internal view returns (uint256) {
         return
@@ -1058,14 +877,6 @@ contract Strategy is BaseStrategy {
         returns (uint256)
     {
         return amount.mul(WAD).div(_getWantTokenPrice());
-    }
-
-    function _convertYieldBearingToWant(uint256 amount)
-        internal
-        view
-        returns (uint256)
-    {
-        return amount.mul(_getYieldBearingTokenPrice()).div(_getWantTokenPrice());
     }
 
     function _getTokenOutPath(address _token_in, address _token_out)

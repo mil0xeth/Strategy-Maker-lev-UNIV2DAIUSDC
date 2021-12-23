@@ -28,7 +28,7 @@ def test_maker_vault_is_owned_by_strategy(Strategy, cloner):
 # Leaving this test as a sanity check.
 def DISABLED_WETH_test_maker_vault_collateral_should_match_strategy(Strategy, cloner):
     strategy = Strategy.at(cloner.original())
-    assert to_string(strategy.ilk()).rstrip("\x00") == "YFI-A"
+    assert to_string(strategy.ilk_want()).rstrip("\x00") == "YFI-A"
 
 
 def test_dai_should_be_minted_after_depositing_collateral(
@@ -72,9 +72,9 @@ def test_minted_dai_should_match_collateralization_ratio(
 
 
 def DISABLED_WETH_test_ethToWant_should_convert_to_yfi(
-    strategy, price_oracle_eth, RELATIVE_APPROX
+    strategy, price_oracle_want_to_eth, RELATIVE_APPROX
 ):
-    price = price_oracle_eth.latestAnswer()
+    price = price_oracle_want_to_eth.latestAnswer()
     assert pytest.approx(
         strategy.ethToWant(Wei("1 ether")), rel=RELATIVE_APPROX
     ) == Wei("1 ether") / (price / 1e18)

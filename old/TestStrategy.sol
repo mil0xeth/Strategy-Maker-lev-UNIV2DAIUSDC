@@ -12,11 +12,9 @@ contract TestStrategy is Strategy {
         address _vault,
         address _yVault,
         string memory _strategyName,
-        bytes32 _ilk_want,
-        bytes32 _ilk_yieldBearing,
+        bytes32 _ilk,
         address _gemJoin,
         address _wantToUSDOSMProxy,
-        address _yieldBearingToUSDOSMProxy,
         address _chainlinkWantToETHPriceFeed
     )
         public
@@ -24,11 +22,9 @@ contract TestStrategy is Strategy {
             _vault,
             _yVault,
             _strategyName,
-            _ilk_want,
-            _ilk_yieldBearing,
+            _ilk,
             _gemJoin,
             _wantToUSDOSMProxy,
-            _yieldBearingToUSDOSMProxy,
             _chainlinkWantToETHPriceFeed
         )
     {}
@@ -55,5 +51,4 @@ contract TestStrategy is Strategy {
     function setCustomOSM(IOSMedianizer _wantToUSDOSMProxy) public {
         wantToUSDOSMProxy = _wantToUSDOSMProxy;
     }
-
 }

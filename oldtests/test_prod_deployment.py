@@ -5,24 +5,28 @@ from eth_abi import encode_single
 
 
 def test_prod(
-    weth, dai, strategist, weth_whale, dai_whale, MakerDaiDelegateCloner, Strategy
+    yvault, productionVault, yieldBearingToken, weth, dai, strategist, weth_whale, dai_whale, MakerDaiDelegateClonerChoice, Strategy, price_oracle_want_to_eth, ilk_want, ilk_yieldBearing, osmProxy_want, osmProxy_yieldBearing, gemJoinAdapter
 ):
-    vault = Contract("0xa258C4606Ca8206D8aA700cE2143D7db854D168c")
+#yvWETH vault:
+    vault = productionVault
     gov = vault.governance()
-    yvault = Contract("0xdA816459F1AB5631232FE5e97a05BBBb94970c95")
-    gemJoinAdapter = Contract("0xF04a5cC80B1E94C69B48f5ee68a08CD2F09A7c3E")
-    osmProxy = Contract("0xCF63089A8aD2a9D8BD6Bb8022f3190EB7e1eD0f1")
-    price_oracle_eth = Contract("0x7c5d4F8345e66f68099581Db340cd65B078C41f4")
+ #   yvault = Contract("0xdA816459F1AB5631232FE5e97a05BBBb94970c95")
+#    gemJoinAdapter = Contract("0xF04a5cC80B1E94C69B48f5ee68a08CD2F09A7c3E")
+  #  osmProxy = Contract("0xCF63089A8aD2a9D8BD6Bb8022f3190EB7e1eD0f1")
+#    price_oracle_eth = Contract("0x7c5d4F8345e66f68099581Db340cd65B078C41f4")
 
     cloner = strategist.deploy(
-        MakerDaiDelegateCloner,
+        MakerDaiDelegateClonerChoice,
         vault,
         yvault,
-        f"StrategyMakerV2_ETH-C",
-        "0x4554482d43000000000000000000000000000000000000000000000000000000",  # ETH-C
+        f"Strategy-Maker-lev-{yieldBearingToken.symbol()}",
+        #"0x4554482d43000000000000000000000000000000000000000000000000000000",  # ETH-C
+        ilk_want,
+        ilk_yieldBearing,
         gemJoinAdapter,
-        osmProxy,
-        price_oracle_eth,
+        osmProxy_want,
+        osmProxy_yieldBearing,
+        price_oracle_want_to_eth
     )
 
     original_strategy_address = history[-1].events["Deployed"]["original"]
@@ -33,7 +37,8 @@ def test_prod(
     assert strategy.rewards() == "0xc491599b9A20c3A2F0A85697Ee6D9434EFa9f503"
 
     # White-list the strategy in the OSM!
-    osmProxy.setAuthorized(strategy, {"from": gov})
+    osmProxy_want.setAuthorized(strategy, {"from": gov})
+    osmProxy_yieldBearing.setAuthorized(strategy, {"from": gov})
 
     # Reduce other strategies debt allocation
     for i in range(0, 20):
@@ -63,7 +68,8 @@ def test_prod(
     chain.mine(1)
 
     # Send some profit to yvDAI
-    dai.transfer(yvault, yvault.totalDebt() * 0.02, {"from": dai_whale})
+    #dai.transfer(yvault, yvault.totalDebt() * 0.02, {"from": dai_whale})
+    dai.transfer(yvault, "1000 ether", {"from": dai_whale})
     strategy.setLeaveDebtBehind(False, {"from": gov})
     tx = strategy.harvest({"from": gov})
 
