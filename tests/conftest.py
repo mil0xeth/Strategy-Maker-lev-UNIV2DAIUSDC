@@ -8,6 +8,10 @@ from brownie import config, convert, interface, Contract
 #4.: Remove SIZE OPTIMISATION
 #5.: Referal: Functions, YieldBearing setFunction? Constructor
 #6.: Why is _checkAllowance setting first allowance to zero, then to max? Why not immediately to max?
+#7.: compiler runs set back to 200
+#8.: WANT token other than ETH or WETH need to enable chainlinkWantToETHPriceFeed
+#9.: Disabled use of OSM Proxy for Want     
+#10.: Disabled use of OSM Proxy for yieldBearing (doesn't exist) 
 #################
 #Decide on Strategy Contract
 @pytest.fixture(autouse=True)
@@ -97,6 +101,7 @@ def StableSwapSTETH(interface):
 def yvault(yvDAI):
     yield yvDAI
 
+#chainlinkWantToETHPriceFeed
 @pytest.fixture
 def price_oracle_want_to_eth(wantNr):
     oracle_address = [
@@ -233,7 +238,7 @@ def router():
 
 @pytest.fixture
 def amount(accounts, token, user):
-    amount = 10 * 10 ** token.decimals()
+    amount = 50 * 10 ** token.decimals()
     # In order to get some funds for the token you are about to use,
     # it impersonate an exchange address to use it's funds.
     reserve = accounts.at("0xF977814e90dA44bFA03b6295A0616a897441aceC", force=True)
@@ -313,7 +318,7 @@ def strategy(vault, StrategyChoice, gov, osmProxy_want, osmProxy_yieldBearing, c
     strategy.setDoHealthCheck(True, {"from": gov})
 
     # set a high acceptable max base fee to avoid changing test behavior
-    strategy.setMaxAcceptableBaseFee(1500 * 1e9, {"from": gov})
+    #strategy.setMaxAcceptableBaseFee(1500 * 1e9, {"from": gov})
 
     vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
 
@@ -333,26 +338,26 @@ def test_strategy(
     gemJoinAdapter,
     osmProxy_want,
     osmProxy_yieldBearing,
-    price_oracle_want_to_eth,
+    #price_oracle_want_to_eth,
     gov, ilk_yieldBearing, ilk_want
 ):
     strategy = strategist.deploy(
         TestStrategyChoice,
         vault,
         yvault,
-        f"Strategy-Maker-lev-{yieldBearingToken.symbol()}",
+        "Strategy-Maker-lev-wstETH",
         ilk_want,
         ilk_yieldBearing,
         gemJoinAdapter,
         osmProxy_want,
-        osmProxy_yieldBearing,
-        price_oracle_want_to_eth
+      #  osmProxy_yieldBearing,
+      #  price_oracle_want_to_eth
     )
     strategy.setLeaveDebtBehind(False, {"from": gov})
     strategy.setDoHealthCheck(True, {"from": gov})
 
     # set a high acceptable max base fee to avoid changing test behavior
-    strategy.setMaxAcceptableBaseFee(1500 * 1e9, {"from": gov})
+    # strategy.setMaxAcceptableBaseFee(1500 * 1e9, {"from": gov})
 
     vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
 
@@ -400,6 +405,9 @@ def ilk_yieldBearing(yieldBearingNr):
 def RELATIVE_APPROX():
     yield 1e-5
 
+@pytest.fixture(scope="session")
+def RELATIVE_APPROX_LOSSY():
+    yield 1e-2
 
 # Obtaining the bytes32 ilk (verify its validity before using)
 # >>> ilk = ""
@@ -421,7 +429,7 @@ def cloner(
     gemJoinAdapter,
     osmProxy_want,
     osmProxy_yieldBearing,
-    price_oracle_want_to_eth,
+   # price_oracle_want_to_eth,
     MakerDaiDelegateClonerChoice,
     ilk_yieldBearing, ilk_want
 ):
@@ -429,12 +437,12 @@ def cloner(
         MakerDaiDelegateClonerChoice,
         vault,
         yvault,
-        f"Strategy-Maker-lev-{yieldBearingToken.symbol()}",
+        "Strategy-Maker-lev-wstETH",
         ilk_want,
         ilk_yieldBearing,
         gemJoinAdapter,
         osmProxy_want,
-        osmProxy_yieldBearing,
-        price_oracle_want_to_eth,
+     #   osmProxy_yieldBearing,
+     #   price_oracle_want_to_eth,
     )
     yield cloner

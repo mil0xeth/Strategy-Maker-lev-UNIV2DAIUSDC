@@ -10,13 +10,13 @@ def test_prod(accounts, ethwrapping, StableSwapSTETH, steth, wsteth, Strategy, t
         MakerDaiDelegateClonerChoice,
         vault,
         yvault,
-        "StrategyMaker",
+        "Strategy-Maker-lev-wstETH",
         ilk_want,
         ilk_yieldBearing,
         gemJoinAdapter,
         osmProxy_want,
         osmProxy_yieldBearing,
-        price_oracle_want_to_eth
+    #    price_oracle_want_to_eth
     )
 
     original_strategy_address = history[-1].events["Deployed"]["original"]
@@ -126,7 +126,7 @@ def test_prod(accounts, ethwrapping, StableSwapSTETH, steth, wsteth, Strategy, t
 
 
     
-    assert 0 == 1
+    #assert 0 == 1
 
 
 def test_ilksource(strategy, gov, strategist, management, guardian, user, productionVault, ilk_want, ilk_yieldBearing, yieldBearingToken, token, gemJoinAdapter):

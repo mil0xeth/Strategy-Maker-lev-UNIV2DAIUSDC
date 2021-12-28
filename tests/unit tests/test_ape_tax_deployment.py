@@ -31,14 +31,14 @@ def test_ape_tax(
         strategist,
         strategist,
         yvault,
-        f"StrategyMaker{weth.symbol()}",
+        "Strategy-Maker-lev-wstETH",
       #  encode_single("bytes32", b"ETH-C"),
         ilk_want,
         ilk_yieldBearing,
         gemJoinAdapter,
         osmProxy_want,
-        osmProxy_yieldBearing,
-        price_oracle_want_to_eth,
+     #   osmProxy_yieldBearing,
+     #   price_oracle_want_to_eth,
         {"from": strategist},
     )
 
@@ -63,7 +63,7 @@ def test_ape_tax(
     weth.approve(vault, 2 ** 256 - 1, {"from": weth_whale})
     vault.deposit(5 * (10 ** weth.decimals()), {"from": weth_whale})
 
-    cloned_strategy.harvest({"from": gov})
+    harvest_tx = cloned_strategy.harvest({"from": gov})
     assert yvault.balanceOf(cloned_strategy) > 0
 
     print(f"After first harvest")

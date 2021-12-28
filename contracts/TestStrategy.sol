@@ -15,9 +15,9 @@ contract TestStrategy is Strategy {
         bytes32 _ilk_want,
         bytes32 _ilk_yieldBearing,
         address _gemJoin,
-        address _wantToUSDOSMProxy,
-        address _yieldBearingToUSDOSMProxy,
-        address _chainlinkWantToETHPriceFeed
+        address _wantToUSDOSMProxy
+//        address _yieldBearingToUSDOSMProxy
+//        address _chainlinkWantToETHPriceFeed
     )
         public
         Strategy(
@@ -27,9 +27,9 @@ contract TestStrategy is Strategy {
             _ilk_want,
             _ilk_yieldBearing,
             _gemJoin,
-            _wantToUSDOSMProxy,
-            _yieldBearingToUSDOSMProxy,
-            _chainlinkWantToETHPriceFeed
+            _wantToUSDOSMProxy
+//            _yieldBearingToUSDOSMProxy
+//            _chainlinkWantToETHPriceFeed
         )
     {}
 
@@ -43,6 +43,15 @@ contract TestStrategy is Strategy {
     function _getPrice() public view returns (uint256) {
         return _getWantUSDPrice();
     }
+
+    function _getYieldBearingUSDPriceYo() public view returns (uint256) {
+        return _getYieldBearingUSDPrice();
+    }
+
+    function _convertWantAmountToYieldBearingWithL(uint256 _amount) public view returns (uint256){
+        return _convertWantAmountToYieldBearingWithLosses(_amount);
+    }
+
 
     function _getCurrentMakerVaultRatio() public view returns (uint256) {
         return getCurrentMakerVaultRatio();
