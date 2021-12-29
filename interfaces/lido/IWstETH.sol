@@ -15,7 +15,7 @@ interface IWstETH is IERC20 {
      * @param _wstETHAmount amount of wstETH
      * @return Amount of stETH obtained for a given wstETH amount
      */
-    //function getStETHByWstETH(uint256 _wstETHAmount) external view returns (uint256);
+    function getStETHByWstETH(uint256 _wstETHAmount) external view returns (uint256);
 
     /**
      * @notice Get amount of stETH obtained for one wstETH

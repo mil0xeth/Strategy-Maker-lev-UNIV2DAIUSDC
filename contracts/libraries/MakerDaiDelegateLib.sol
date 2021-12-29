@@ -43,28 +43,6 @@ library MakerDaiDelegateLib {
 
     // ----------------- PUBLIC FUNCTIONS -----------------
 
-    // WRAPPING/SWAPPING FUNCTIONS:
-    function ethunwrap(
-        uint256 _amount
-    ) public {
-        ethwrapping.withdraw(_amount);
-    }
-
-    function ethwrap(
-        uint256 _amount
-    ) public {
-        ethwrapping.deposit{value: _amount}();
-    }
-
-
-
-
-
-
-
-
-
-
     // Creates an UrnHandler (cdp) for a specific ilk and allows to manage it via the internal
     // registry of the manager.
     function openCdp(bytes32 ilk) public returns (uint256) {

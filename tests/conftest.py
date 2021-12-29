@@ -12,6 +12,7 @@ from brownie import config, convert, interface, Contract
 #8.: WANT token other than ETH or WETH need to enable chainlinkWantToETHPriceFeed
 #9.: Disabled use of OSM Proxy for Want     
 #10.: Disabled use of OSM Proxy for yieldBearing (doesn't exist) 
+#11.: maxSingleTrade implementation
 #################
 #Decide on Strategy Contract
 @pytest.fixture(autouse=True)

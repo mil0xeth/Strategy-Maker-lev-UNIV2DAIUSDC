@@ -32,18 +32,19 @@ contract TestStrategy is Strategy {
 //            _chainlinkWantToETHPriceFeed
         )
     {}
-
+/*
     function _liquidatePosition(uint256 _amountNeeded)
         public
         returns (uint256 _liquidatedAmount, uint256 _loss)
     {
         (_liquidatedAmount, _loss) = liquidatePosition(_amountNeeded);
     }
-
+*/
     function _getPrice() public view returns (uint256) {
         return _getWantUSDPrice();
     }
 
+/*
     function _getYieldBearingUSDPriceYo() public view returns (uint256) {
         return _getYieldBearingUSDPrice();
     }
@@ -56,11 +57,12 @@ contract TestStrategy is Strategy {
     function _getCurrentMakerVaultRatio() public view returns (uint256) {
         return getCurrentMakerVaultRatio();
     }
-
+*/
+/*
     function freeCollateral(uint256 collateralAmount) public {
         return _freeCollateralAndRepayDai(collateralAmount, 0);
     }
-
+*/
     function setCustomOSM(IOSMedianizer _wantToUSDOSMProxy) public {
         wantToUSDOSMProxy = _wantToUSDOSMProxy;
     }

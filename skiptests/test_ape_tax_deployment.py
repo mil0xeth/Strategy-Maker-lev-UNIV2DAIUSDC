@@ -5,6 +5,7 @@ from eth_abi import encode_single
 
 
 def test_ape_tax(
+    productionVault,
     weth,
     dai,
     yvault,
@@ -19,9 +20,14 @@ def test_ape_tax(
     osmProxy_yieldBearing,
     price_oracle_want_to_eth,
     ilk_want,
-    ilk_yieldBearing
+    ilk_yieldBearing,
+    token_whale,
+    token, vault
 ):
-    vault = Contract("0x5120FeaBd5C21883a4696dBCC5D123d6270637E9")
+    #vault = Contract("0x5120FeaBd5C21883a4696dBCC5D123d6270637E9")
+    #vault = productionVault
+    #Throw away tokens from vault: 
+
     daddy = gov
     gov = vault.governance()
 
@@ -58,10 +64,12 @@ def test_ape_tax(
 
         vault.updateStrategyDebtRatio(strat_address, 0, {"from": gov})
 
+
     vault.addStrategy(cloned_strategy, 10_000, 0, 2 ** 256 - 1, 0, {"from": gov})
 
     weth.approve(vault, 2 ** 256 - 1, {"from": weth_whale})
-    vault.deposit(5 * (10 ** weth.decimals()), {"from": weth_whale})
+    vault.deposit("50 ether", {"from": weth_whale})
+    vault.balanceOf(weth_whale) == "50 ether"
 
     harvest_tx = cloned_strategy.harvest({"from": gov})
     assert yvault.balanceOf(cloned_strategy) > 0
@@ -82,7 +90,7 @@ def test_ape_tax(
     # Send some profit to yvDAI
     #Doesn't work: totalDebt() not a function
     #dai.transfer(yvault, yvault.totalDebt() * 0.01, {"from": dai_whale})
-    dai.transfer(yvault, "1000 ether", {"from": dai_whale})
+    dai.transfer(yvault, yvault.totalAssets()*0.1, {"from": dai_whale})
     cloned_strategy.setLeaveDebtBehind(False, {"from": gov})
     tx = cloned_strategy.harvest({"from": gov})
 
@@ -100,7 +108,7 @@ def test_ape_tax(
     chain.sleep(60 * 60 * 8)
     chain.mine(1)
 
-    vault.updateStrategyDebtRatio(cloned_strategy, 0, {"from": gov})
+    #vault.updateStrategyDebtRatio(cloned_strategy, 0, {"from": gov})
     cloned_strategy.harvest({"from": gov})
 
     print(f"After third harvest")

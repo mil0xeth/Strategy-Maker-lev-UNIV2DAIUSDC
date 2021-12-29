@@ -29,20 +29,24 @@ contract Strategy is BaseStrategy {
     using Address for address;
     using SafeMath for uint256;
 
-    //event DebugTokenHeldByStrategy(uint256 _number, uint _value);
+
+    
+    event DebugTokenHeldByStrategy(uint256 _number, uint _value);
+
     //Hardcoded Options: YieldBearing, Referal:
     IWstETH public constant yieldBearing =  IWstETH(0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0);
-    //IERC20 internal yieldBearing = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);  //WETH for test
     //Referal 
     address private referal = 0x35a83D4C1305451E0448fbCa96cAb29A7cCD0811;
     //SlippageProtection
-    uint256 public slippageProtectionOut = 100;// = 50; //out of 10000. 50 = 0.5%
-
+    
+    
     //----------- Lido & Curve & DAI INIT
     ISteth public constant stETH =  ISteth(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84);
     //Curve ETH/stETH StableSwap
     ICurveFi public constant StableSwapSTETH = ICurveFi(0xDC24316b9AE028F1497c275EB9192a3Ea0f67022);
-
+    uint256 public slippageProtectionOut;
+    //uint256 public maxSingleTrade;
+    
     //investmentToken = token to be borrowed and further invested
     // DAI
     IERC20 internal constant investmentToken = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
@@ -196,6 +200,9 @@ contract Strategy is BaseStrategy {
         //yieldBearingToUSDOSMProxy = IOSMedianizer(_yieldBearingToUSDOSMProxy);
         //chainlinkWantToETHPriceFeed = AggregatorInterface(_chainlinkWantToETHPriceFeed);
     
+        //maxSingleTrade = 1_000 * 1e18;
+        slippageProtectionOut = 100;
+
         // Set default router to SushiSwap
         router = sushiswapRouter;
 
@@ -206,8 +213,8 @@ contract Strategy is BaseStrategy {
         require(cdpId > 0); // dev: error opening cdp
 
         // Current ratio can drift (collateralizationRatio -f rebalanceTolerance, collateralizationRatio + rebalanceTolerance)
-        // Allow additional 10% in any direction (210, 240) by default
-        rebalanceTolerance = (10 * MAX_BPS) / 100;
+        // Allow additional 15% in any direction (210, 240) by default
+        rebalanceTolerance = (15 * MAX_BPS) / 100;
 
         // Minimum collaterization ratio on YFI-A is 175%
         // Minimum collaterization ratio for WstETH is 160%
@@ -221,7 +228,8 @@ contract Strategy is BaseStrategy {
         maxLoss = 1;
 
         // Set max acceptable base fee to take on more debt to 60 gwei
-        maxAcceptableBaseFee = 60 * 1e9;
+        //maxAcceptableBaseFee = 60 * 1e9;
+        maxAcceptableBaseFee = 1000 * 1e9;
     }
 
     //we get eth
@@ -250,7 +258,7 @@ contract Strategy is BaseStrategy {
         ); // dev: desired collateralization ratio is too low
         collateralizationRatio = _collateralizationRatio;
     }
-/*
+
     // Rebalancing bands (collat ratio - tolerance, collat_ratio + tolerance)
     function setRebalanceTolerance(uint256 _rebalanceTolerance)
         external
@@ -264,7 +272,7 @@ contract Strategy is BaseStrategy {
         ); // dev: desired rebalance tolerance makes allowed ratio too low
         rebalanceTolerance = _rebalanceTolerance;
     }
-*/
+
     // If set to true the strategy will never sell want to repay debts
     function setLeaveDebtBehind(bool _leaveDebtBehind)
         external
@@ -308,7 +316,7 @@ contract Strategy is BaseStrategy {
     {
         MakerDaiDelegateLib.allowManagingCdp(cdpId, user, allow);
     }
-*/
+
     // Allow switching between Uniswap and SushiSwap
     function switchDex(bool isUniswap) external onlyVaultManagers {
         if (isUniswap) {
@@ -317,7 +325,7 @@ contract Strategy is BaseStrategy {
             router = sushiswapRouter;
         }
     }
-/*
+
     // Allow external debt repayment
     // Attempt to take currentRatio to target c-ratio
     // Passing zero will repay all debt if possible
@@ -353,10 +361,10 @@ contract Strategy is BaseStrategy {
 
     function estimatedTotalAssets() public view override returns (uint256) {  //measured in WANT
         return
-            balanceOfWant()   //free WANT balance in wallet
+                balanceOfWant() //free WANT balance in wallet
                 .add(ethToWant(address(this).balance))  //free ETH balance in wallet
-                //.add(stETH.balanceOf(address(this))) //free stETH
-                //.add(_convertYieldBearingAmountToWant(yieldBearing.balanceOf(address(this)))) // There should not be any free yieldBearing in wallet
+                //.add(stETH.balanceOf(address(this))) //there should not be any free stETH; treat as ETH
+                //.add(_convertYieldBearingAmountToWant(yieldBearing.balanceOf(address(this)))) // There should not be any free yieldBearing in wallet; treat steth as eth
                 .add(_convertYieldBearingAmountToWant(balanceOfMakerVault()))   //Collateral on Maker --> yieldBearing --> WANT 
                 .add(_convertInvestmentTokenAmountToWant(balanceOfInvestmentToken()))  // free DAI balance in wallet --> WANT
                 .add(_convertInvestmentTokenAmountToWant(_valueOfInvestment()))  //locked yvDAI shares --> DAI --> WANT
@@ -415,8 +423,7 @@ contract Strategy is BaseStrategy {
             //Determine amount of Want to Deposit
             _depositToMakerVault(balanceOfWant().sub(_debtOutstanding));
         }
-        //current state: currentRatio is 2.25 because ratio of collateral to debt is 2.25
-        //GOAL: collateralizationRatio is a GOAL = 2.7
+        
         // Allow the ratio to move a bit in either direction to avoid cycles
         uint256 currentRatio = getCurrentMakerVaultRatio();
         //if current ratio is below goal ratio:
@@ -470,20 +477,23 @@ contract Strategy is BaseStrategy {
         //_________________ Attempt to repay necessary debt to restore the target collateralization ratio
         _repayDebt(newRatio);   
         //emit DebugTokenHeldByStrategy(3, want.balanceOf(address(this)));
-        //emit DebugTokenHeldByStrategy(4, getCurrentMakerVaultRatio());
+        emit DebugTokenHeldByStrategy(4, getCurrentMakerVaultRatio());
         // Unlock as much collateral as possible while keeping the target ratio
         yieldBearingAmountToFree = Math.min(yieldBearingAmountToFree, _maxWithdrawal());
         _freeCollateralAndRepayDai(yieldBearingAmountToFree, 0);
         _swapYieldBearingToWant(yieldBearingAmountToFree);
-        //emit DebugTokenHeldByStrategy(5, want.balanceOf(address(this)));
-        //emit DebugTokenHeldByStrategy(6, getCurrentMakerVaultRatio());
+        emit DebugTokenHeldByStrategy(5, want.balanceOf(address(this)));
+        emit DebugTokenHeldByStrategy(6, getCurrentMakerVaultRatio());
         //reinvest the amount of want unlocked that is left over
-        adjustPosition(_wantAmountNeeded);
+        //adjustPosition(_wantAmountNeeded);
         //_depositToMakerVault(balanceOfWant().sub(_wantAmountNeeded));
         //emit DebugTokenHeldByStrategy(7, want.balanceOf(address(this)));
         //emit DebugTokenHeldByStrategy(8, getCurrentMakerVaultRatio());
         //Maximum amount of want from normal ways now free in strategy wallet 
         // If we still need more want to repay, we may need to unlock some collateral to sell
+        
+        //old leavedebtbehind mechanic
+        /*
         if (
             !leaveDebtBehind &&
             balanceOfWant() < _wantAmountNeeded &&
@@ -492,11 +502,24 @@ contract Strategy is BaseStrategy {
             _sellCollateralToRepayRemainingDebtIfNeeded();
             _swapYieldBearingToWant(yieldBearing.balanceOf(address(this)));
         }
-        //loss calculation and returning lidated amount
-        uint256 looseWant = balanceOfWant();
-        if (_wantAmountNeeded > looseWant) {
-            _liquidatedAmount = looseWant;
-            _loss = _wantAmountNeeded.sub(looseWant);
+        */
+
+        //Check if dust floor needs to be broken to access further want
+        //After accessing as much yieldBearing as possible, repay debt and unlock all collateral and dump into want
+        uint256 debtFloor = MakerDaiDelegateLib.debtFloor(ilk_yieldBearing);
+        emit DebugTokenHeldByStrategy(7, debtFloor);
+        emit DebugTokenHeldByStrategy(8, balanceOfDebt());
+        //debtFloor and Debt ratio check to see if need to break debtFloor
+        // Maker will revert if the outstanding debt is less than a debt floor
+        // called 'dust'. If we are there we need to either pay the debt in full
+        // or leave at least 'dust' balance (10,000 DAI for YFI-A)
+
+        //update free want after liquidating
+        wantBalance = balanceOfWant();
+        //loss calculation and returning liquidated amount
+        if (wantBalance < _wantAmountNeeded) {
+            _liquidatedAmount = wantBalance;
+            _loss = _wantAmountNeeded.sub(wantBalance);
         } else {
             _liquidatedAmount = _wantAmountNeeded;
             _loss = 0;
@@ -627,26 +650,24 @@ contract Strategy is BaseStrategy {
     }
 
     function _sellCollateralToRepayRemainingDebtIfNeeded() internal {
-        //DAI value of yvDAI owned by strategy
-        uint256 currentInvestmentValue = _valueOfInvestment();
         //DAI Debt on MAKER   minus    DAI value of yvDAI owned by strategy
-        uint256 investmentLeftToAcquire =
-            balanceOfDebt().sub(currentInvestmentValue);
-
-        uint256 investmentLeftToAcquireInWant =
-            _convertInvestmentTokenAmountToWant(investmentLeftToAcquire);
-
-        if (investmentLeftToAcquireInWant <= balanceOfWant() && investmentLeftToAcquireInWant != 0) {
-            //replaced function: _buyInvestmentTokenWithWant  ---  _buyInvestmentTokenWithWant(investmentLeftToAcquire);
-            _checkAllowance(address(router), address(want), investmentLeftToAcquire);
+        uint256 debtLeftToRepay = balanceOfDebt().sub(_valueOfInvestment());
+        //Want how much debt is left to repay with Want
+        uint256 debtLeftToRepayInWant = _convertInvestmentTokenAmountToWant(debtLeftToRepay);
+        //Pay for debt with free want
+        if (debtLeftToRepayInWant <= balanceOfWant() && debtLeftToRepayInWant != 0) {
+            //swap free want to investment token
+            _checkAllowance(address(router), address(want), debtLeftToRepay);
             router.swapTokensForExactTokens(
-                investmentLeftToAcquire,
+                debtLeftToRepay,
                 type(uint256).max,
                 _getTokenOutPath(address(want), address(investmentToken)),
                 address(this),
                 now
             );
+            //repay debt
             _repayDebt(0);
+            //free collateral
             _freeCollateralAndRepayDai(balanceOfMakerVault(), 0);
         }
     }
@@ -967,7 +988,14 @@ contract Strategy is BaseStrategy {
         return minPrice.mul(RAY).div(MakerDaiDelegateLib.getDaiPar());
     }
 
-        
+//    function t_valueOfInvestment() public view returns (uint256){
+//        return _valueOfInvestment();
+//    } 
+
+    function t_isDaiAvailableToMint() public view returns (bool){
+        return MakerDaiDelegateLib.isDaiAvailableToMint(ilk_yieldBearing);
+    }
+
     function _valueOfInvestment() internal view returns (uint256) {
         return
             yVault.balanceOf(address(this)).mul(yVault.pricePerShare()).div(
@@ -1023,7 +1051,19 @@ contract Strategy is BaseStrategy {
         view
         returns (uint256)
     {
-        return _amount.mul(_getYieldBearingUSDPrice()).div(_getWantUSDPrice());
+        // WstETH from stETH wrapping/unrapping 1:1
+        // treat stETH as 1:1 with ETH/WETH.
+        // Reasoning: We are purposely treating stETH and ETH as being equivalent. 
+        // This is for a few reasons. The main one is that we do not have a good way to value stETH at any current time without creating exploit routes.
+        // Currently you can mint eth for steth but can't burn steth for eth so need to sell. Once eth 2.0 is merged you will be able to burn 1-1 as well.
+        // The main downside here is that we will noramlly overvalue our position as we expect stETH to trade slightly below peg.
+        // That means we will earn profit on deposits and take losses on withdrawals.
+        // This may sound scary but it is the equivalent of using virtualprice in a curve lp. As we have seen from many exploits, virtual pricing is safer than touch pricing.
+        
+        //yieldBearing amount = _amount --> how much steth would we get?  --> steth 1:1 eth
+        return yieldBearing.getStETHByWstETH(_amount);
+        //Alternative: 1% lower estimation for conversion slippages
+        //return _amount.mul(_getYieldBearingUSDPrice()).div(_getWantUSDPrice()).mul(990).div(1000);
     }
 
     function _convertWantAmountToYieldBearingWithLosses(uint256 _amount)
@@ -1031,11 +1071,18 @@ contract Strategy is BaseStrategy {
         view
         returns (uint256)
     {
+        
+        //Want to WstETH amount through ETH/WETH 1:1 stETH
+        return yieldBearing.getWstETHByStETH(_amount);
+
+        //by chainswapping exactly steth and adding 1% error
         //How much yieldBearing to be chain-swapped back to Want to unlock specific Want amount
-        uint256 multiplier = _amount.mul(WAD).div(StableSwapSTETH.get_dy(1, 0, _amount));
-        uint256 stethamountneeded = _amount.mul(multiplier).div(WAD);
-        return yieldBearing.getWstETHByStETH(stethamountneeded).mul(10100).div(10000);
-    //    return amount.mul(_getWantUSDPrice()).div(_getYieldBearingUSDPrice());
+        //uint256 multiplier = _amount.mul(WAD).div(StableSwapSTETH.get_dy(1, 0, _amount));
+        //uint256 stethamountneeded = _amount.mul(multiplier).div(WAD);
+        //return yieldBearing.getWstETHByStETH(stethamountneeded).mul(10100).div(10000);
+        
+        //Alternative: by price oracle
+        //return amount.mul(_getWantUSDPrice()).div(_getYieldBearingUSDPrice());
     }
 
     function _getTokenOutPath(address _token_in, address _token_out)
