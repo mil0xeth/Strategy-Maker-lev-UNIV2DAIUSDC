@@ -315,7 +315,7 @@ def custom_osm(TestCustomOSM, gov):
 @pytest.fixture
 def strategy(vault, StrategyChoice, gov, osmProxy_want, osmProxy_yieldBearing, cloner):
     strategy = StrategyChoice.at(cloner.original())
-    strategy.setLeaveDebtBehind(False, {"from": gov})
+    strategy.setRetainDebtFloorBool(False, {"from": gov})
     strategy.setDoHealthCheck(True, {"from": gov})
 
     # set a high acceptable max base fee to avoid changing test behavior
@@ -350,11 +350,11 @@ def test_strategy(
         ilk_want,
         ilk_yieldBearing,
         gemJoinAdapter,
-        osmProxy_want,
+      #  osmProxy_want,
       #  osmProxy_yieldBearing,
       #  price_oracle_want_to_eth
     )
-    strategy.setLeaveDebtBehind(False, {"from": gov})
+    strategy.setRetainDebtFloorBool(False, {"from": gov})
     strategy.setDoHealthCheck(True, {"from": gov})
 
     # set a high acceptable max base fee to avoid changing test behavior
@@ -442,7 +442,7 @@ def cloner(
         ilk_want,
         ilk_yieldBearing,
         gemJoinAdapter,
-        osmProxy_want,
+     #   osmProxy_want,
      #   osmProxy_yieldBearing,
      #   price_oracle_want_to_eth,
     )

@@ -6,13 +6,35 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 
 import "../../interfaces/maker/IMaker.sol";
-import "../../interfaces/UniswapInterfaces/IWETH.sol";
+//import "../../interfaces/UniswapInterfaces/IWETH.sol";
+import {
+    SafeERC20,
+    SafeMath,
+    IERC20,
+    Address
+} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+
+//AAVE Flashloan
+import "../../interfaces/Aave/ILendingPoolAddressesProvider.sol";
+import "../../interfaces/Aave/ILendingPool.sol";
+import "../../interfaces/swap/ISwap.sol";
 
 library MakerDaiDelegateLib {
+    using SafeERC20 for IERC20;
+    using Address for address;
     using SafeMath for uint256;
 
+    event DebugDelegate(uint256 _number, uint _value);
+
+    //AAVE Flashloan
+    address private constant AAVE_LENDING = 0x24a42fD28C976A61Df5D00D0599C34c4f90748c8;
+    ILendingPoolAddressesProvider public constant addressesProvider = ILendingPoolAddressesProvider(AAVE_LENDING);
+    // @notice emitted when trying to do Flash Loan. flashLoan address is 0x00 when no flash loan used
+    event Leverage(uint256 amountRequested, uint256 amountGiven, bool deficit, address flashLoan);
+    
+    address internal constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     //eth wrapping & unwrapping interface
-    IWETH public constant ethwrapping = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    //IWETH public constant ethwrapping = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
     // Units used in Maker contracts
     uint256 internal constant WAD = 10**18;
@@ -356,4 +378,150 @@ library MakerDaiDelegateLib {
         // Adapters will automatically handle the difference of precision
         wad = amt.mul(10**(18 - GemJoinLike(gemJoin).dec()));
     }
+
+
+    //AAVE FLASHLOAN:
+    function doAaveFlashLoan(address _token, bool deficit, uint256 _flashBackUpAmount) public returns (uint256 amount) {
+        //we do not want to do aave flash loans for leveraging up. Fee could put us into liquidation
+        if (!deficit) {
+            return _flashBackUpAmount;
+        }
+
+        ILendingPool lendingPool = ILendingPool(addressesProvider.getLendingPool());
+
+        uint256 availableLiquidity = IERC20(_token).balanceOf(address(0x3dfd23A6c5E8BbcFc9581d2E864a68feb6a076d3));
+
+        if (availableLiquidity < _flashBackUpAmount) {
+            amount = availableLiquidity;
+        } else {
+            amount = _flashBackUpAmount;
+        }
+
+        bytes memory data = abi.encode(deficit, amount);
+
+        //anyone can call aave flash loan to us. (for some reason. grrr)
+        //awaitingFlash = true;
+
+        lendingPool.flashLoan(address(this), address(_token), amount, data);
+
+        //awaitingFlash = false;
+
+        emit Leverage(_flashBackUpAmount, amount, deficit, AAVE_LENDING);
+    }
+
+    //Aave calls this function after doing flash loan
+    function aaveExecuteOperation(
+        address _reserve,
+        uint256 _amount,
+        uint256 _fee,
+        //bytes calldata _params,
+        address gemJoinFlash,
+        uint256 cdpIdFlash,
+        address yieldBearingFlash,
+        address routerAddressFlash
+    ) external {
+        //(bool deficit, uint256 amount) = abi.decode(_params, (bool, uint256));
+        require(msg.sender == addressesProvider.getLendingPool(), "NOT_AAVE");
+        //require(awaitingFlash, "Malicious");
+        ISwap routerFlash = ISwap(routerAddressFlash); 
+        address investmentTokenFlash = _reserve;
+        uint256 totalDebt = _amount.add(_fee);
+        //How much yield bearing to trade to pay back AAVE
+        uint256[] memory debtLeftToRepayInYieldBearingArray = routerFlash.getAmountsIn(totalDebt, getTokenOutPath(yieldBearingFlash, investmentTokenFlash));
+        _checkAllowance(daiJoinAddress(), investmentTokenFlash, _amount);
+        wipeAndFreeGem(gemJoinFlash, cdpIdFlash, debtLeftToRepayInYieldBearingArray[0], _amount);
+        _checkAllowance(address(routerFlash), yieldBearingFlash, totalDebt);
+        //Swap yield bearing for investment token
+        routerFlash.swapTokensForExactTokens(
+            totalDebt,
+            type(uint256).max,
+            getTokenOutPath(yieldBearingFlash, investmentTokenFlash),
+            address(this),
+            now
+        );
+        //Pay back AAVE:
+        address core = addressesProvider.getLendingPoolCore();
+        _checkAllowance(address(core), investmentTokenFlash, totalDebt);
+        IERC20(_reserve).safeTransfer(core, totalDebt);        
+        //_loanLogic(deficit, amount, amount.add(_fee));
+
+        // return the flash loan plus Aave's flash loan fee back to the lending pool
+
+    }
+
+    //address gemJoinFlash;
+    //uint256 cdpIdFlash;
+    //address yieldBearingFlash;
+    //address investmentTokenFlash;
+    //ISwap routerFlash;
+
+    //Sell Collateral
+    function sellCollateralToRepayRemainingDebtIfNeeded(uint256 _remainingDebt, address _yieldBearing, address _investmentToken, address _router, uint256 _cdpId, address _gemJoin) external returns (uint256) {
+        if (_remainingDebt == 0) {
+            return 0;
+        }
+        ISwap router = ISwap(_router);
+        //How much debt (denoted in Investment Token) is left to repay with collateral? 
+        //Denote that in yieldBearing
+        //uint256 debtLeftToRepayInWant = _convertInvestmentTokenAmountToWant(_remainingDebt); 
+        uint256[] memory debtLeftToRepayInYieldBearingArray = router.getAmountsIn(_remainingDebt, getTokenOutPath(_yieldBearing, _investmentToken));
+        //If there is enough free yieldBearing, pay for debt with yieldBearing
+        if (debtLeftToRepayInYieldBearingArray[0] <= IERC20(_yieldBearing).balanceOf(address(this)) && debtLeftToRepayInYieldBearingArray[0] != 0) {
+            //swap free want to investment token
+            _checkAllowance(address(router), _yieldBearing, _remainingDebt);
+            router.swapTokensForExactTokens(
+                _remainingDebt,
+                type(uint256).max,
+                getTokenOutPath(_yieldBearing, _investmentToken),
+                address(this),
+                now
+            );
+        } else { 
+            //gemJoinFlash = _gemJoin;
+            //cdpIdFlash = _cdpId;
+            //yieldBearingFlash = _yieldBearing;
+            //investmentTokenFlash = _investmentToken;
+            //routerFlash = router;
+            emit DebugDelegate(99, 0);
+            doAaveFlashLoan(_investmentToken, true, _remainingDebt);
+
+
+            //repay debt
+            //_repayDebt(0);
+            //free collateral
+            //_freeCollateralAndRepayDai(balanceOfMakerVault(), 0);
+        
+            }
+    }
+
+
+    function getTokenOutPath(address _token_in, address _token_out)
+        public
+        pure
+        returns (address[] memory _path)
+    {
+        bool is_weth =
+            _token_in == address(WETH) || _token_out == address(WETH);
+        _path = new address[](is_weth ? 2 : 3);
+        _path[0] = _token_in;
+
+        if (is_weth) {
+            _path[1] = _token_out;
+        } else {
+            _path[1] = address(WETH);
+            _path[2] = _token_out;
+        }
+    }
+
+    function _checkAllowance(
+        address _contract,
+        address _token,
+        uint256 _amount
+    ) public {
+        if (IERC20(_token).allowance(address(this), _contract) < _amount) {
+            //IERC20(_token).safeApprove(_contract, 0);
+            IERC20(_token).safeApprove(_contract, type(uint256).max);
+        }
+    }
+
 }

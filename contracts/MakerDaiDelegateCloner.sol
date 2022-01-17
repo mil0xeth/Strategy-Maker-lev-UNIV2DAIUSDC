@@ -17,8 +17,8 @@ contract MakerDaiDelegateCloner {
         string memory _strategyName,
         bytes32 _ilk_want,
         bytes32 _ilk_yieldBearing,
-        address _gemJoin,
-        address _wantToUSDOSMProxy
+        address _gemJoin
+   //     address _wantToUSDOSMProxy
    //     address _yieldBearingToUSDOSMProxy
    //     address _chainlinkWantToETHPriceFeed
     ) public {
@@ -29,8 +29,8 @@ contract MakerDaiDelegateCloner {
                 _strategyName,
                 _ilk_want,
                 _ilk_yieldBearing,
-                _gemJoin,
-                _wantToUSDOSMProxy
+                _gemJoin
+    //            _wantToUSDOSMProxy
     //            _yieldBearingToUSDOSMProxy
     //            _chainlinkWantToETHPriceFeed
             );
@@ -58,8 +58,8 @@ contract MakerDaiDelegateCloner {
         string memory _strategyName,
         bytes32 _ilk_want,
         bytes32 _ilk_yieldBearing,
-        address _gemJoin,
-        address _wantToUSDOSMProxy
+        address _gemJoin
+ //       address _wantToUSDOSMProxy
  //       address _yieldBearingToUSDOSMProxy
  //       address _chainlinkWantToETHPriceFeed
     ) external returns (address payable newStrategy) {
@@ -86,8 +86,8 @@ contract MakerDaiDelegateCloner {
             _strategyName,
             _ilk_want,
             _ilk_yieldBearing,
-            _gemJoin,
-            _wantToUSDOSMProxy
+            _gemJoin
+   //         _wantToUSDOSMProxy
    //         _yieldBearingToUSDOSMProxy
    //         _chainlinkWantToETHPriceFeed
         );

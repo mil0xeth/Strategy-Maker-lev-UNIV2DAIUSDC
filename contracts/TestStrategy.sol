@@ -14,8 +14,8 @@ contract TestStrategy is Strategy {
         string memory _strategyName,
         bytes32 _ilk_want,
         bytes32 _ilk_yieldBearing,
-        address _gemJoin,
-        address _wantToUSDOSMProxy
+        address _gemJoin
+//        address _wantToUSDOSMProxy
 //        address _yieldBearingToUSDOSMProxy
 //        address _chainlinkWantToETHPriceFeed
     )
@@ -26,8 +26,8 @@ contract TestStrategy is Strategy {
             _strategyName,
             _ilk_want,
             _ilk_yieldBearing,
-            _gemJoin,
-            _wantToUSDOSMProxy
+            _gemJoin
+//            _wantToUSDOSMProxy
 //            _yieldBearingToUSDOSMProxy
 //            _chainlinkWantToETHPriceFeed
         )
@@ -40,11 +40,12 @@ contract TestStrategy is Strategy {
         (_liquidatedAmount, _loss) = liquidatePosition(_amountNeeded);
     }
 */
+/*
     function _getPrice() public view returns (uint256) {
         return _getWantUSDPrice();
     }
 
-/*
+
     function _getYieldBearingUSDPriceYo() public view returns (uint256) {
         return _getYieldBearingUSDPrice();
     }
@@ -58,13 +59,22 @@ contract TestStrategy is Strategy {
         return getCurrentMakerVaultRatio();
     }
 */
-/*
-    function freeCollateral(uint256 collateralAmount) public {
-        return _freeCollateralAndRepayDai(collateralAmount, 0);
+
+    function freeCollateral(uint256 collateralAmount, uint256 daiAmount) public {
+        _checkAllowance(
+            MakerDaiDelegateLib.daiJoinAddress(),
+            address(investmentToken),
+            daiAmount
+        );
+        return _freeCollateralAndRepayDai(collateralAmount, daiAmount);
     }
-*/
+
+    function repayDebt(uint256 _amount) public {
+        return _repayDebt(_amount);
+    }
+/*
     function setCustomOSM(IOSMedianizer _wantToUSDOSMProxy) public {
         wantToUSDOSMProxy = _wantToUSDOSMProxy;
     }
-
+*/
 }
