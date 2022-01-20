@@ -23,21 +23,21 @@ interface ISwap {
         view 
         returns (uint256[] memory amounts);
 
-/*
-    function getAmountsOut(uint256 amountIn, address[] memory path)
+
+    function getAmountsOut(uint256 amountIn, address[] calldata path)
         external
         view
         returns (uint256[] memory amounts);
 
 
     function getAmountIn(uint amountOut, uint reserveIn, uint reserveOut) 
-        internal 
+        external 
         pure 
         returns (uint amountIn);
 
     function getReserves(address factory, address tokenA, address tokenB) 
-        internal 
+        external 
         view 
         returns (uint reserveA, uint reserveB);
-*/
+
 }

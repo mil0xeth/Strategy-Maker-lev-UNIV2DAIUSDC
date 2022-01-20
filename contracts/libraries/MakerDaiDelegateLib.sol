@@ -381,11 +381,29 @@ library MakerDaiDelegateLib {
 
 
     //AAVE FLASHLOAN:
-    function doAaveFlashLoan(address _token, bool deficit, uint256 _flashBackUpAmount) public returns (uint256 amount) {
+    function doAaveFlashLoan(address _token, uint256 _flashBackUpAmount, 
+        address gemJoinFlash,
+        uint256 cdpIdFlash,
+        bytes32 ilk_yieldBearing) public returns (uint256 amount) {
         //we do not want to do aave flash loans for leveraging up. Fee could put us into liquidation
-        if (!deficit) {
-            return _flashBackUpAmount;
+        if (_flashBackUpAmount == 0) {
+            _checkAllowance(daiJoinAddress(), _token, debtForCdp(cdpIdFlash, ilk_yieldBearing));
+            wipeAndFreeGem(gemJoinFlash, cdpIdFlash, balanceOfCdp(cdpIdFlash, ilk_yieldBearing), debtForCdp(cdpIdFlash, ilk_yieldBearing));
+            return 0;
         }
+        
+        if (_flashBackUpAmount < 1000000000000000000) {
+            // if above 0, but below 1 DAI, set minimum to 10 DAI 
+            _flashBackUpAmount = 1000000000000000000;
+        }
+
+
+
+        bool deficit = true;
+
+        //if (!deficit) {
+        //    return _flashBackUpAmount;
+        //}
 
         ILendingPool lendingPool = ILendingPool(addressesProvider.getLendingPool());
 
@@ -417,44 +435,47 @@ library MakerDaiDelegateLib {
         //bytes calldata _params,
         address gemJoinFlash,
         uint256 cdpIdFlash,
-        address yieldBearingFlash,
-        address routerAddressFlash
+        address yieldBearingAdd,
+        address routerAdd,
+        bytes32 ilk_yieldBearing
     ) external {
         //(bool deficit, uint256 amount) = abi.decode(_params, (bool, uint256));
-        require(msg.sender == addressesProvider.getLendingPool(), "NOT_AAVE");
+        //require(msg.sender == addressesProvider.getLendingPool(), "NOT_AAVE");
         //require(awaitingFlash, "Malicious");
-        ISwap routerFlash = ISwap(routerAddressFlash); 
-        address investmentTokenFlash = _reserve;
-        uint256 totalDebt = _amount.add(_fee);
+        ISwap router = ISwap(routerAdd); 
+        address investmentTokenAdd = _reserve;
+        //Paying back AAVE needs to be +fee
+        uint256 aaveDebtAmount = _amount.add(_fee);
         //How much yield bearing to trade to pay back AAVE
-        uint256[] memory debtLeftToRepayInYieldBearingArray = routerFlash.getAmountsIn(totalDebt, getTokenOutPath(yieldBearingFlash, investmentTokenFlash));
-        _checkAllowance(daiJoinAddress(), investmentTokenFlash, _amount);
-        wipeAndFreeGem(gemJoinFlash, cdpIdFlash, debtLeftToRepayInYieldBearingArray[0], _amount);
-        _checkAllowance(address(routerFlash), yieldBearingFlash, totalDebt);
+        uint256 debtLeftToRepayInYieldBearing = router.getAmountsIn(
+            aaveDebtAmount, 
+            getTokenOutPath(yieldBearingAdd, investmentTokenAdd)
+        )[0];
+        _checkAllowance(daiJoinAddress(), investmentTokenAdd, debtForCdp(cdpIdFlash, ilk_yieldBearing));
+        //wipeAndFreeGem(gemJoinFlash, cdpIdFlash, debtLeftToRepayInYieldBearing, _amount);
+        wipeAndFreeGem(gemJoinFlash, cdpIdFlash, balanceOfCdp(cdpIdFlash, ilk_yieldBearing), debtForCdp(cdpIdFlash, ilk_yieldBearing));
+        //--- MAKER DEBT REPAID & YIELD BEARING UNLOCKED!
+
+        //--- REPAY AAVE
+        _checkAllowance(routerAdd, yieldBearingAdd, aaveDebtAmount);
         //Swap yield bearing for investment token
-        routerFlash.swapTokensForExactTokens(
-            totalDebt,
+        router.swapTokensForExactTokens(
+            aaveDebtAmount,
             type(uint256).max,
-            getTokenOutPath(yieldBearingFlash, investmentTokenFlash),
+            getTokenOutPath(yieldBearingAdd, investmentTokenAdd),
             address(this),
             now
         );
-        //Pay back AAVE:
+        //Pay back AAVE+fee:
         address core = addressesProvider.getLendingPoolCore();
-        _checkAllowance(address(core), investmentTokenFlash, totalDebt);
-        IERC20(_reserve).safeTransfer(core, totalDebt);        
+        _checkAllowance(core, investmentTokenAdd, aaveDebtAmount);
+        IERC20(investmentTokenAdd).safeTransfer(core, aaveDebtAmount);        
         //_loanLogic(deficit, amount, amount.add(_fee));
-
-        // return the flash loan plus Aave's flash loan fee back to the lending pool
-
     }
 
-    //address gemJoinFlash;
-    //uint256 cdpIdFlash;
-    //address yieldBearingFlash;
-    //address investmentTokenFlash;
-    //ISwap routerFlash;
 
+
+/*
     //Sell Collateral
     function sellCollateralToRepayRemainingDebtIfNeeded(uint256 _remainingDebt, address _yieldBearing, address _investmentToken, address _router, uint256 _cdpId, address _gemJoin) external returns (uint256) {
         if (_remainingDebt == 0) {
@@ -479,8 +500,8 @@ library MakerDaiDelegateLib {
         } else { 
             //gemJoinFlash = _gemJoin;
             //cdpIdFlash = _cdpId;
-            //yieldBearingFlash = _yieldBearing;
-            //investmentTokenFlash = _investmentToken;
+            //yieldBearing = _yieldBearing;
+            //investmentToken = _investmentToken;
             //routerFlash = router;
             emit DebugDelegate(99, 0);
             doAaveFlashLoan(_investmentToken, true, _remainingDebt);
@@ -493,8 +514,19 @@ library MakerDaiDelegateLib {
         
             }
     }
+*/
 
+    function getTokenOutPath(address _token_in, address _token_out)
+        public
+        pure
+        returns (address[] memory _path)
+    {
+        _path = new address[](2);
+        _path[0] = _token_in;
+        _path[1] = _token_out;
+    }
 
+/*
     function getTokenOutPath(address _token_in, address _token_out)
         public
         pure
@@ -512,7 +544,7 @@ library MakerDaiDelegateLib {
             _path[2] = _token_out;
         }
     }
-
+*/
     function _checkAllowance(
         address _contract,
         address _token,

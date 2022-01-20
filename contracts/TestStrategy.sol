@@ -59,7 +59,7 @@ contract TestStrategy is Strategy {
         return getCurrentMakerVaultRatio();
     }
 */
-
+/*
     function freeCollateral(uint256 collateralAmount, uint256 daiAmount) public {
         _checkAllowance(
             MakerDaiDelegateLib.daiJoinAddress(),
@@ -72,7 +72,7 @@ contract TestStrategy is Strategy {
     function repayDebt(uint256 _amount) public {
         return _repayDebt(_amount);
     }
-/*
+
     function setCustomOSM(IOSMedianizer _wantToUSDOSMProxy) public {
         wantToUSDOSMProxy = _wantToUSDOSMProxy;
     }
