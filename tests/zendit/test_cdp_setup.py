@@ -11,11 +11,11 @@ def test_deploy_should_create_new_maker_vault(Strategy, cloner):
     assert len(deployment_tx.events["NewCdp"]) == 1
 
 
-def test_cdpId_points_to_maker_vault(Strategy, cloner):
-    strategy = Strategy.at(cloner.original())
-    deployment_tx = TxHistory()[-1]
-    assert strategy.cdpId() > 0
-    assert strategy.cdpId() == deployment_tx.events["NewCdp"]["cdp"]
+#def test_cdpId_points_to_maker_vault(Strategy, cloner):
+#    strategy = Strategy.at(cloner.original())
+#    deployment_tx = TxHistory()[-1]
+#    assert strategy.cdpId() > 0
+#    assert strategy.cdpId() == deployment_tx.events["NewCdp"]["cdp"]
 
 
 def test_maker_vault_is_owned_by_strategy(Strategy, cloner):
@@ -49,7 +49,7 @@ def test_dai_should_be_minted_after_depositing_collateral(
     assert yvDAI.balanceOf(strategy) > 0
 
 
-def test_minted_dai_should_match_collateralization_ratio(
+def DISABLED_minted_dai_should_match_collateralization_ratio(
     test_strategy, vault, yvDAI, token, token_whale, gov, RELATIVE_APPROX
 ):
     assert yvDAI.balanceOf(test_strategy) == 0
@@ -87,7 +87,7 @@ def DISABLED_WETH_test_ethToWant_should_convert_to_yfi(
 
 
 # Needs to use test_strategy fixture to be able to read token_price
-def test_delegated_assets_pricing(
+def DISABLED_delegated_assets_pricing(
     test_strategy, vault, yvDAI, token, token_whale, gov, RELATIVE_APPROX
 ):
     amount = 25 * (10 ** token.decimals())

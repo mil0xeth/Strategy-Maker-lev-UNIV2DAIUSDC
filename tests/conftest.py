@@ -13,6 +13,7 @@ from brownie import config, convert, interface, Contract
 #9.: Disabled use of OSM Proxy for Want     
 #10.: Disabled use of OSM Proxy for yieldBearing (doesn't exist) 
 #11.: maxSingleTrade implementation
+#12.: Awaiting Flash in MakerDaiDelegateLib doAaveFlashloan ENABLE
 #################
 #Decide on Strategy Contract
 @pytest.fixture(autouse=True)
@@ -146,6 +147,15 @@ def dai():
     dai_address = "0x6B175474E89094C44Da98b954EedeAC495271d0F"
     yield Contract(dai_address)
 
+#@pytest.fixture
+#def steth_whale(accounts):
+#    yield accounts.at("0x2faf487a4414fe77e2327f0bf4ae2a264a776ad2") 
+
+#@pytest.fixture
+#def wsteth_whale(accounts):
+#    yield accounts.at("0x62e41b1185023bcc14a465d350e1dde341557925") 
+
+
 @pytest.fixture
 def token_whale(accounts, wantNr):
     eth_whale = accounts.at("0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8", force=True)
@@ -207,6 +217,9 @@ def gov(accounts):
 def user(accounts):
     yield accounts[0]
 
+@pytest.fixture
+def user2(accounts):
+    yield accounts[0]
 
 @pytest.fixture
 def rewards(accounts):
@@ -245,6 +258,35 @@ def amount(accounts, token, user):
     reserve = accounts.at("0xF977814e90dA44bFA03b6295A0616a897441aceC", force=True)
     token.transfer(user, amount, {"from": reserve})
     yield amount
+
+@pytest.fixture
+def amount2(accounts, token, user2):
+    amount = 50 * 10 ** token.decimals()
+    # In order to get some funds for the token you are about to use,
+    # it impersonate an exchange address to use it's funds.
+    reserve = accounts.at("0xF977814e90dA44bFA03b6295A0616a897441aceC", force=True)
+    token.transfer(user2, amount, {"from": reserve})
+    yield amount
+
+
+@pytest.fixture
+def amountBIGTIME(accounts, token, user):
+    amount = 20000 * 10 ** token.decimals()
+    # In order to get some funds for the token you are about to use,
+    # it impersonate an exchange address to use it's funds.
+    reserve = accounts.at("0xF977814e90dA44bFA03b6295A0616a897441aceC", force=True)
+    token.transfer(user, amount, {"from": reserve})
+    yield amount
+
+@pytest.fixture
+def amountBIGTIME2(accounts, token, user2):
+    amount = 6000 * 10 ** token.decimals()
+    # In order to get some funds for the token you are about to use,
+    # it impersonate an exchange address to use it's funds.
+    reserve = accounts.at("0xF977814e90dA44bFA03b6295A0616a897441aceC", force=True)
+    token.transfer(user2, amount, {"from": reserve})
+    yield amount
+
 
 @pytest.fixture
 def vault(pm, gov, rewards, guardian, management, token):
@@ -409,6 +451,10 @@ def RELATIVE_APPROX():
 @pytest.fixture(scope="session")
 def RELATIVE_APPROX_LOSSY():
     yield 1e-2
+
+@pytest.fixture(scope="session")
+def RELATIVE_APPROX_ROUGH():
+    yield 1e-1
 
 # Obtaining the bytes32 ilk (verify its validity before using)
 # >>> ilk = ""

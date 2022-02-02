@@ -40,12 +40,12 @@ contract TestStrategy is Strategy {
         (_liquidatedAmount, _loss) = liquidatePosition(_amountNeeded);
     }
 */
-/*
+
     function _getPrice() public view returns (uint256) {
         return _getWantUSDPrice();
     }
 
-
+/*
     function _getYieldBearingUSDPriceYo() public view returns (uint256) {
         return _getYieldBearingUSDPrice();
     }

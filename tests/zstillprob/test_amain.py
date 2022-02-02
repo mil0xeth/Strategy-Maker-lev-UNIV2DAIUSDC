@@ -14,8 +14,8 @@ def test_prod(accounts, ethwrapping, StableSwapSTETH, steth, wsteth, Strategy, t
         ilk_want,
         ilk_yieldBearing,
         gemJoinAdapter,
-        osmProxy_want,
-        osmProxy_yieldBearing,
+    #    osmProxy_want,
+    #    osmProxy_yieldBearing,
     #    price_oracle_want_to_eth
     )
 
@@ -23,8 +23,8 @@ def test_prod(accounts, ethwrapping, StableSwapSTETH, steth, wsteth, Strategy, t
     strategy = Strategy.at(original_strategy_address)
 
     # White-list the strategy in the OSM!
-    osmProxy_want.setAuthorized(strategy, {"from": gov})
-    osmProxy_yieldBearing.setAuthorized(strategy, {"from": gov})
+    #osmProxy_want.setAuthorized(strategy, {"from": gov})
+    #osmProxy_yieldBearing.setAuthorized(strategy, {"from": gov})
 
     # Reduce other strategies debt allocation
     for i in range(0, 20):
@@ -83,7 +83,7 @@ def test_prod(accounts, ethwrapping, StableSwapSTETH, steth, wsteth, Strategy, t
     assert wsteth.balanceOf(token_whale) == 0
     balanceBefore = wsteth.balanceOf(token_whale)
     steth.approve(wsteth, 2 ** 256 - 1, {'from': token_whale})
-    wsteth.wrap("100 ether", {'from': token_whale})
+    wsteth.wrap("99 ether", {'from': token_whale})
     assert wsteth.balanceOf(token_whale) > balanceBefore
     #YAY WE GOT WSTETH
 

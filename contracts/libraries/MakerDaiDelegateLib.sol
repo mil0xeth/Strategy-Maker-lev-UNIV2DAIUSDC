@@ -392,9 +392,9 @@ library MakerDaiDelegateLib {
             return 0;
         }
         
-        if (_flashBackUpAmount < 1000000000000000000) {
-            // if above 0, but below 1 DAI, set minimum to 10 DAI 
-            _flashBackUpAmount = 1000000000000000000;
+        if (_flashBackUpAmount < 1e17) {
+            // if above 0, but below 0.1 DAI, set minimum to 0.1 DAI 
+            _flashBackUpAmount = 1e17;
         }
 
 
@@ -437,8 +437,12 @@ library MakerDaiDelegateLib {
         uint256 cdpIdFlash,
         address yieldBearingAdd,
         address routerAdd,
-        bytes32 ilk_yieldBearing
+        bytes32 ilk_yieldBearing,
+        bool retainDebtFloor
     ) external {
+        if (_amount == 0) {
+            return;
+        }
         //(bool deficit, uint256 amount) = abi.decode(_params, (bool, uint256));
         //require(msg.sender == addressesProvider.getLendingPool(), "NOT_AAVE");
         //require(awaitingFlash, "Malicious");
@@ -451,9 +455,26 @@ library MakerDaiDelegateLib {
             aaveDebtAmount, 
             getTokenOutPath(yieldBearingAdd, investmentTokenAdd)
         )[0];
+        
+        //debt withdrawal _amount not more than current total debt, collateral withdrawal not more than total collateral
+        _amount = Math.min(_amount, debtForCdp(cdpIdFlash, ilk_yieldBearing));
+        debtLeftToRepayInYieldBearing = Math.min(debtLeftToRepayInYieldBearing, balanceOfCdp(cdpIdFlash, ilk_yieldBearing));
+
+        //if the remaining debt is below the debtFloor & retainDebtFloor == false --> pay off full debt
+        //if the remaining debt is below the debtFloor & retainDebtFloor == true --> pay off only until debtFloor+1e
+        //debtFloor.add(1e15)
+        if (debtForCdp(cdpIdFlash, ilk_yieldBearing) - _amount < debtFloor(ilk_yieldBearing)){
+            _amount = debtForCdp(cdpIdFlash, ilk_yieldBearing);
+        }
+
+        if (_amount == debtForCdp(cdpIdFlash, ilk_yieldBearing)){
+            debtLeftToRepayInYieldBearing = balanceOfCdp(cdpIdFlash, ilk_yieldBearing);
+        }
+
         _checkAllowance(daiJoinAddress(), investmentTokenAdd, debtForCdp(cdpIdFlash, ilk_yieldBearing));
-        //wipeAndFreeGem(gemJoinFlash, cdpIdFlash, debtLeftToRepayInYieldBearing, _amount);
-        wipeAndFreeGem(gemJoinFlash, cdpIdFlash, balanceOfCdp(cdpIdFlash, ilk_yieldBearing), debtForCdp(cdpIdFlash, ilk_yieldBearing));
+        wipeAndFreeGem(gemJoinFlash, cdpIdFlash, debtLeftToRepayInYieldBearing, _amount);
+        
+        //wipeAndFreeGem(gemJoinFlash, cdpIdFlash, balanceOfCdp(cdpIdFlash, ilk_yieldBearing), debtForCdp(cdpIdFlash, ilk_yieldBearing));
         //--- MAKER DEBT REPAID & YIELD BEARING UNLOCKED!
 
         //--- REPAY AAVE

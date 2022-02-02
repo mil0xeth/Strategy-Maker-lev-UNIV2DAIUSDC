@@ -4,15 +4,13 @@ from brownie import chain, reverts, Wei
 
 
 def test_small_deposit_does_not_generate_debt_under_floor(
-    vault, test_strategy, token, token_whale, yvault, borrow_token, gov
+    vault, test_strategy, token, token_whale, yvault, borrow_token, gov, RELATIVE_APPROX_ROUGH
 ):
     price = test_strategy._getPrice()
-    floor = Wei("4_990 ether")  # assume a price floor of 5k as in ETH-C
+    floor = Wei("14_000 ether")  # assume a price floor of 5k as in ETH-C
 
     # Amount in want that generates 'floor' debt minus a treshold
-    token_floor = ((test_strategy.collateralizationRatio() * floor / 1e18) / price) * (
-        10 ** token.decimals()
-    )
+    token_floor = ((test_strategy.collateralizationRatio() * floor / 1e18) / price) * ( 10 ** token.decimals())
 
     # Deposit to the vault and send funds through the strategy
     token.approve(vault.address, token_floor, {"from": token_whale})
@@ -28,22 +26,22 @@ def test_small_deposit_does_not_generate_debt_under_floor(
     assert borrow_token.balanceOf(test_strategy) == 0
 
     # These are zero because all want is locked in Maker's vault
-    assert test_strategy.balanceOfMakerVault() == token_floor
+    assert (pytest.approx(test_strategy.balanceOfMakerVault(), rel=RELATIVE_APPROX_ROUGH) == token_floor)
     assert token.balanceOf(test_strategy) == 0
     assert token.balanceOf(vault) == 0
 
     # Collateral with no debt should be a high ratio
     assert (
-        test_strategy._getCurrentMakerVaultRatio()
+        test_strategy.getCurrentMakerVaultRatio()
         > test_strategy.collateralizationRatio()
     )
 
 
 def test_deposit_after_passing_debt_floor_generates_debt(
-    vault, test_strategy, token, token_whale, yvault, borrow_token, gov, RELATIVE_APPROX
+    vault, test_strategy, token, token_whale, yvault, borrow_token, gov, RELATIVE_APPROX, RELATIVE_APPROX_ROUGH
 ):
     price = test_strategy._getPrice()
-    floor = Wei("4_990 ether")  # assume a price floor of 5k as in ETH-C
+    floor = Wei("14_000 ether")  # assume a price floor of 5k as in ETH-C
 
     # Amount in want that generates 'floor' debt minus a treshold
     token_floor = ((test_strategy.collateralizationRatio() * floor / 1e18) / price) * (
@@ -61,10 +59,10 @@ def test_deposit_after_passing_debt_floor_generates_debt(
     assert test_strategy.balanceOfDebt() == 0
     assert yvault.balanceOf(test_strategy) == 0
     assert borrow_token.balanceOf(test_strategy) == 0
-    assert test_strategy.balanceOfMakerVault() == token_floor
+    assert (pytest.approx(test_strategy.balanceOfMakerVault(), rel=RELATIVE_APPROX_ROUGH) == token_floor)
 
     # Deposit enough want token to go over the dust
-    additional_deposit = Wei("0.5 ether")
+    additional_deposit = Wei("2 ether")
 
     vault.deposit(additional_deposit, {"from": token_whale})
     chain.sleep(1)
@@ -73,21 +71,21 @@ def test_deposit_after_passing_debt_floor_generates_debt(
     # Ensure that we have now taken on debt and deposited into yVault
     assert yvault.balanceOf(test_strategy) > 0
     assert test_strategy.balanceOfDebt() > 0
-    assert test_strategy.balanceOfMakerVault() == token_floor + additional_deposit
+    assert (pytest.approx(test_strategy.balanceOfMakerVault(), rel=RELATIVE_APPROX_ROUGH) == token_floor + additional_deposit)
 
     # Collateral with no debt should be a high ratio
     assert (
-        pytest.approx(test_strategy._getCurrentMakerVaultRatio(), rel=RELATIVE_APPROX)
+        pytest.approx(test_strategy.getCurrentMakerVaultRatio(), rel=RELATIVE_APPROX)
         == test_strategy.collateralizationRatio()
     )
 
 
 def test_withdraw_does_not_leave_debt_under_floor(
-    vault, test_strategy, token, token_whale, yvault, dai, dai_whale, gov
+    vault, test_strategy, token, token_whale, yvault, dai, dai_whale, gov, RELATIVE_APPROX_ROUGH
 ):
     # Deposit to the vault and send funds through the strategy
     token.approve(vault.address, 2 ** 256 - 1, {"from": token_whale})
-    vault.deposit(Wei("10 ether"), {"from": token_whale})
+    vault.deposit(Wei("15 ether"), {"from": token_whale})
     chain.sleep(1)
     test_strategy.harvest({"from": gov})
 
@@ -100,7 +98,7 @@ def test_withdraw_does_not_leave_debt_under_floor(
     shares = yvault.balanceOf(test_strategy)
 
     # Withdraw large amount so remaining debt is under floor
-    vault.withdraw(Wei("9.9 ether"), {"from": token_whale})
+    vault.withdraw(Wei("14.5 ether"), 100, {"from": token_whale})
 
     # Almost all yvDAI shares should have been used to repay the debt
     # and avoid the floor
@@ -109,11 +107,11 @@ def test_withdraw_does_not_leave_debt_under_floor(
     # Because collateral balance is much larger than the debt (currently 0)
     # we expect the current ratio to be above target
     assert (
-        test_strategy._getCurrentMakerVaultRatio()
+        test_strategy.getCurrentMakerVaultRatio()
         > test_strategy.collateralizationRatio()
     )
 
-
+ 
 def test_large_deposit_does_not_generate_debt_over_ceiling(
     vault, test_strategy, token, token_whale, yvault, borrow_token, gov
 ):
@@ -135,7 +133,7 @@ def test_large_deposit_does_not_generate_debt_over_ceiling(
     # Collateral ratio should be larger due to debt being capped by ceiling
     assert (
         test_strategy.collateralizationRatio() * 1.01
-        < test_strategy._getCurrentMakerVaultRatio()
+        < test_strategy.getCurrentMakerVaultRatio()
     )
 
 
@@ -154,7 +152,7 @@ def test_withdraw_everything_with_vault_in_debt_ceiling(
     vault.withdraw({"from": token_whale})
 
     assert vault.strategies(test_strategy).dict()["totalDebt"] == 0
-    assert test_strategy._getCurrentMakerVaultRatio() == 0
+    assert test_strategy.getCurrentMakerVaultRatio() == 0
     assert yvault.balanceOf(test_strategy) < 1e18  # dust
     assert pytest.approx(token.balanceOf(token_whale), rel=RELATIVE_APPROX) == amount
 
@@ -182,7 +180,7 @@ def test_large_want_balance_does_not_generate_debt_over_ceiling(
     # Collateral ratio should be larger due to debt being capped by ceiling
     assert (
         test_strategy.collateralizationRatio() * 1.01
-        < test_strategy._getCurrentMakerVaultRatio()
+        < test_strategy.getCurrentMakerVaultRatio()
     )
 
 
@@ -198,7 +196,7 @@ def test_deposit_after_ceiling_reached_should_not_mint_more_dai(
     test_strategy.harvest({"from": gov})
 
     investment_before = yvault.balanceOf(test_strategy)
-    ratio_before = test_strategy._getCurrentMakerVaultRatio()
+    ratio_before = test_strategy.getCurrentMakerVaultRatio()
 
     # Deposit to the vault and send funds through the strategy
     token.approve(vault.address, 2 ** 256 - 1, {"from": token_whale})
@@ -207,7 +205,7 @@ def test_deposit_after_ceiling_reached_should_not_mint_more_dai(
     test_strategy.harvest({"from": gov})
 
     assert investment_before >= yvault.balanceOf(test_strategy)
-    assert ratio_before < test_strategy._getCurrentMakerVaultRatio()
+    assert ratio_before < test_strategy.getCurrentMakerVaultRatio()
 
 
 # Fixture 'amount' is included so user has some balance
