@@ -696,28 +696,30 @@ contract Strategy is BaseStrategy {
             //emit DebugTokenHeldByStrategy(0, balanceOfDebt());
             //emit DebugTokenHeldByStrategy(1, _valueOfInvestment());
             //emit DebugTokenHeldByStrategy(0, minimumDebt);
-            emit DebugTokenHeldByStrategy(80085, minimumDebt);
-            emit DebugTokenHeldByStrategy(800851, balanceOfDebt());
-            emit DebugTokenHeldByStrategy(800852, _valueOfInvestment());
-            amountToRepay = minimumDebt - _withdrawFromYVault(Math.min(_valueOfInvestment(), minimumDebt)); 
-            emit DebugTokenHeldByStrategy(800851, currentDebt);
-            emit DebugTokenHeldByStrategy(800852, Math.min(minimumDebt - amountToRepay, currentDebt));
+            //emit DebugTokenHeldByStrategy(80085, minimumDebt);
+            //emit DebugTokenHeldByStrategy(800851, balanceOfDebt());
+            _withdrawFromYVault(Math.min(_valueOfInvestment(), minimumDebt));
+            //amountToRepay = minimumDebt - _withdrawFromYVault(Math.min(_valueOfInvestment(), minimumDebt)); 
+            emit DebugTokenHeldByStrategy(1337, balanceOfInvestmentToken());
             // if above 0, but below 0.1 DAI, set minimum to 0.1 DAI
-            if (amountToRepay < 1e17 && amountToRepay > 0) {
-            amountToRepay = 1e17;
-            }
-            emit DebugTokenHeldByStrategy(80085, amountToRepay);
-            _freeCollateralAndRepayDai(0, Math.min(minimumDebt - amountToRepay, currentDebt));
+            //if (amountToRepay < 1e18 && amountToRepay > 0) {
+            //amountToRepay = 1e18;
+            //}
+            emit DebugTokenHeldByStrategy(1336, Math.min(minimumDebt - amountToRepay, currentDebt));
+            emit DebugTokenHeldByStrategy(1335, amountToRepay);
+            
+            //_repayInvestmentTokenDebt(Math.min(minimumDebt - amountToRepay, currentDebt));
+            //_freeCollateralAndRepayDai(0, Math.min(minimumDebt - amountToRepay, currentDebt));
             //minimumDebt = 150010000
             //amountToRepay = 333
             //currentDebt = 15001000
             //minimumDebt - amountToRepay = 149996999
  
-
-            //emit DebugTokenHeldByStrategy(8008135, balanceOfInvestmentToken());
+            emit DebugTokenHeldByStrategy(313, balanceOfInvestmentToken());
             //emit DebugTokenHeldByStrategy(696111, _valueOfInvestment());
             //MakerDaiDelegateLib.doAaveFlashLoan(address(investmentToken), minimumDebt - balanceOfInvestmentToken(), gemJoinAdapter, cdpId, ilk_yieldBearing);
-            MakerDaiDelegateLib.doAaveFlashLoan(address(investmentToken), amountToRepay, gemJoinAdapter, cdpId, ilk_yieldBearing);
+            MakerDaiDelegateLib.doAaveFlashLoan(address(investmentToken), minimumDebt, gemJoinAdapter, cdpId, ilk_yieldBearing);
+            emit DebugTokenHeldByStrategy(1334, balanceOfDebt());
             //emit DebugTokenHeldByStrategy(80081350, balanceOfInvestmentToken());
             //emit DebugTokenHeldByStrategy(1071, balanceOfDebt());
             //doAaveFlashLoan(_investmentToken, true, _remainingDebt);

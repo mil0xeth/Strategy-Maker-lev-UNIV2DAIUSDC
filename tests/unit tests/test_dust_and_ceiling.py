@@ -98,17 +98,15 @@ def test_withdraw_does_not_leave_debt_under_floor(
     shares = yvault.balanceOf(test_strategy)
 
     # Withdraw large amount so remaining debt is under floor
-    vault.withdraw(Wei("14.5 ether"), 100, {"from": token_whale})
+    vault.withdraw("14.5 ether", token_whale, 100, {"from": token_whale})
 
     # Almost all yvDAI shares should have been used to repay the debt
     # and avoid the floor
     assert (yvault.balanceOf(test_strategy) - (shares - shares * (1 / 1.03))) < 1e18
 
-    # Because collateral balance is much larger than the debt (currently 0)
-    # we expect the current ratio to be above target
+    # Because debt is under floor, we expect Ratio to be 0
     assert (
-        test_strategy.getCurrentMakerVaultRatio()
-        > test_strategy.collateralizationRatio()
+        test_strategy.getCurrentMakerVaultRatio() == 0
     )
 
  
@@ -138,7 +136,7 @@ def test_large_deposit_does_not_generate_debt_over_ceiling(
 
 
 def test_withdraw_everything_with_vault_in_debt_ceiling(
-    vault, test_strategy, token, token_whale, yvault, gov, RELATIVE_APPROX
+    vault, test_strategy, token, token_whale, yvault, gov, RELATIVE_APPROX_ROUGH
 ):
     amount = token.balanceOf(token_whale)
 
@@ -148,13 +146,13 @@ def test_withdraw_everything_with_vault_in_debt_ceiling(
     chain.sleep(1)
     test_strategy.harvest({"from": gov})
 
-    test_strategy.setLeaveDebtBehind(False, {"from": gov})
-    vault.withdraw({"from": token_whale})
+    #test_strategy.setLeaveDebtBehind(False, {"from": gov})
+    vault.withdraw(vault.balanceOf(token_whale), token_whale, 1000, {"from": token_whale})
 
     assert vault.strategies(test_strategy).dict()["totalDebt"] == 0
     assert test_strategy.getCurrentMakerVaultRatio() == 0
     assert yvault.balanceOf(test_strategy) < 1e18  # dust
-    assert pytest.approx(token.balanceOf(token_whale), rel=RELATIVE_APPROX) == amount
+    assert pytest.approx(token.balanceOf(token_whale), rel=RELATIVE_APPROX_ROUGH) == amount
 
 
 def test_large_want_balance_does_not_generate_debt_over_ceiling(
@@ -210,7 +208,7 @@ def test_deposit_after_ceiling_reached_should_not_mint_more_dai(
 
 # Fixture 'amount' is included so user has some balance
 def test_withdraw_everything_cancels_entire_debt(
-    vault, test_strategy, token, token_whale, user, amount, yvault, dai, dai_whale, gov,
+    vault, test_strategy, token, token_whale, user, amount, yvault, dai, dai_whale, gov, RELATIVE_APPROX_LOSSY
 ):
     amount_user = Wei("0.25 ether")
     amount_whale = Wei("10 ether")
@@ -228,16 +226,16 @@ def test_withdraw_everything_cancels_entire_debt(
     # Send profits to yVault
     dai.transfer(yvault, yvault.totalAssets() * 0.00001, {"from": dai_whale})
 
-    assert vault.withdraw({"from": token_whale}).return_value == amount_whale
-    assert vault.withdraw({"from": user}).return_value == amount_user
+    assert pytest.approx(vault.withdraw(vault.balanceOf(token_whale), token_whale, 100, {"from": token_whale}).return_value, rel=RELATIVE_APPROX_LOSSY) == amount_whale
+    assert pytest.approx(vault.withdraw(vault.balanceOf(user), user, 100, {"from": user}).return_value, rel=RELATIVE_APPROX_LOSSY) == amount_user
     assert vault.strategies(test_strategy).dict()["totalDebt"] == 0
 
 
 def test_withdraw_under_floor_without_funds_to_cancel_entire_debt_should_fail(
-    vault, test_strategy, token, token_whale, gov, yvault
+    vault, test_strategy, token, token_whale, gov, yvault, RELATIVE_APPROX_LOSSY
 ):
     # Make sure the strategy will not sell want to repay debt
-    test_strategy.setLeaveDebtBehind(False, {"from": gov})
+    #test_strategy.setLeaveDebtBehind(False, {"from": gov})
 
     price = test_strategy._getPrice()
     floor = Wei("5_100 ether")  # assume a price floor of 5k as in ETH-C
@@ -268,7 +266,7 @@ def test_withdraw_under_floor_without_funds_to_cancel_entire_debt_should_fail(
     )
 
     assert (
-        vault.withdraw(max_withdrawal, {"from": token_whale}).return_value
+        pytest.approx(vault.withdraw(max_withdrawal, token_whale, 100, {"from": token_whale}).return_value, rel=RELATIVE_APPROX_LOSSY)
         == max_withdrawal
     )
 
@@ -279,7 +277,7 @@ def test_withdraw_under_floor_without_funds_to_cancel_entire_debt_should_fail(
 
 
 def test_small_withdraw_cancels_corresponding_debt(
-    vault, strategy, token, token_whale, yvault, gov, RELATIVE_APPROX
+    vault, strategy, token, token_whale, yvault, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
 ):
     amount = Wei("10 ether")
     to_withdraw_pct = 0.2
@@ -294,7 +292,7 @@ def test_small_withdraw_cancels_corresponding_debt(
     shares_before = yvault.balanceOf(strategy)
 
     assert (
-        vault.withdraw(amount * to_withdraw_pct, {"from": token_whale}).return_value
+        pytest.approx(vault.withdraw(amount * to_withdraw_pct, token_whale, 100, {"from": token_whale}).return_value, rel=RELATIVE_APPROX_LOSSY)
         == amount * to_withdraw_pct
     )
 

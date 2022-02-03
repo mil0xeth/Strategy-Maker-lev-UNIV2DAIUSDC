@@ -386,18 +386,22 @@ library MakerDaiDelegateLib {
         uint256 cdpIdFlash,
         bytes32 ilk_yieldBearing) public returns (uint256 amount) {
         //we do not want to do aave flash loans for leveraging up. Fee could put us into liquidation
-        if (_flashBackUpAmount == 0) {
+        //scenario: minimumDebt = 15001, only 14999 in investment Token --> paWithFlashloan = small --> alright!
+        //scenario: minimumDebt to pay off = 40 000, debt = 40000 full 40000 in investment Token --> pay all off
+        //scenario: minimumDebt to pay off = 40 000, debt = 100 000, 10 investment otkne --> pay = 10000
+        uint256 currentDebt = debtForCdp(cdpIdFlash, ilk_yieldBearing);
+        uint256 payWithFlashloan = _flashBackUpAmount - Math.min(IERC20(_token).balanceOf(address(this)), _flashBackUpAmount);
+        //If entire debt can be paid off with investment tokens
+        if (currentDebt == _flashBackUpAmount && payWithFlashloan == 0) {
             _checkAllowance(daiJoinAddress(), _token, debtForCdp(cdpIdFlash, ilk_yieldBearing));
             wipeAndFreeGem(gemJoinFlash, cdpIdFlash, balanceOfCdp(cdpIdFlash, ilk_yieldBearing), debtForCdp(cdpIdFlash, ilk_yieldBearing));
             return 0;
         }
-        
-        if (_flashBackUpAmount < 1e17) {
+
+        if (payWithFlashloan < 1e17) {
             // if above 0, but below 0.1 DAI, set minimum to 0.1 DAI 
-            _flashBackUpAmount = 1e17;
+            payWithFlashloan = 1e17;
         }
-
-
 
         bool deficit = true;
 
@@ -407,13 +411,9 @@ library MakerDaiDelegateLib {
 
         ILendingPool lendingPool = ILendingPool(addressesProvider.getLendingPool());
 
-        uint256 availableLiquidity = IERC20(_token).balanceOf(address(0x3dfd23A6c5E8BbcFc9581d2E864a68feb6a076d3));
-
-        if (availableLiquidity < _flashBackUpAmount) {
-            amount = availableLiquidity;
-        } else {
-            amount = _flashBackUpAmount;
-        }
+        //uint256 availableLiquidity = IERC20(_token).balanceOf(address(0x3dfd23A6c5E8BbcFc9581d2E864a68feb6a076d3));
+        //amount = Math.min(availableLiquidity, payWithFlashloan);
+        amount = payWithFlashloan;
 
         bytes memory data = abi.encode(deficit, amount);
 
@@ -424,7 +424,7 @@ library MakerDaiDelegateLib {
 
         //awaitingFlash = false;
 
-        emit Leverage(_flashBackUpAmount, amount, deficit, AAVE_LENDING);
+        emit Leverage(payWithFlashloan, amount, deficit, AAVE_LENDING);
     }
 
     //Aave calls this function after doing flash loan
