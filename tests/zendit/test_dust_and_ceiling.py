@@ -375,7 +375,8 @@ def test_tend_trigger_with_funds_in_cdp_but_no_debt_returns_false(
     dai.transfer(yvDAI, "6000 ether", {"from": dai_whale})
     strategy.emergencyDebtRepayment(0, {"from": vault.management()})
 
-    assert strategy.balanceOfMakerVault() > 0
-    #assert strategy.balanceOfDebt() == 0
-    assert strategy.getCurrentMakerVaultRatio() / 1e18 > 1000
+    #strategy currently unlocks collateral that is unused
+    #assert strategy.balanceOfMakerVault() > 0
+    assert strategy.balanceOfDebt() == 0
+    #assert strategy.getCurrentMakerVaultRatio() / 1e18 > 1000
     assert strategy.tendTrigger(1) == False

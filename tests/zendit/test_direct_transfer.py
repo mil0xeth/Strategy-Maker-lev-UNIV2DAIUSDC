@@ -20,7 +20,7 @@ def test_direct_transfer_increments_profits(
 
     token.approve(vault.address, 2 ** 256 - 1, {"from": token_whale})
     vault.deposit(1000 * (10 ** token.decimals()), {"from": token_whale})
-    #chain.sleep(1)
+    chain.sleep(1)
     harvest_tx = strategy.harvest({"from": gov})
 
     amount = 5 * (10 ** token.decimals())

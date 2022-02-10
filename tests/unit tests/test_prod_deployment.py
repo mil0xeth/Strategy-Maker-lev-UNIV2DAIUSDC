@@ -5,7 +5,7 @@ from eth_abi import encode_single
 
 
 def test_prod(
-    yvault, productionVault, yieldBearingToken, weth, dai, strategist, weth_whale, dai_whale, MakerDaiDelegateClonerChoice, Strategy, price_oracle_want_to_eth, ilk_want, ilk_yieldBearing, osmProxy_want, osmProxy_yieldBearing, gemJoinAdapter
+    yvault, healthCheck, productionVault, yieldBearingToken, weth, dai, strategist, weth_whale, dai_whale, MakerDaiDelegateClonerChoice, Strategy, price_oracle_want_to_eth, ilk_want, ilk_yieldBearing, osmProxy_want, osmProxy_yieldBearing, gemJoinAdapter
 ):
 #yvWETH vault:
     vault = productionVault
@@ -19,14 +19,15 @@ def test_prod(
         MakerDaiDelegateClonerChoice,
         vault,
         yvault,
-        f"Strategy-Maker-lev-{yieldBearingToken.symbol()}",
+        "Strategy",
+        #f"Strategy-Maker-lev-{yieldBearingToken.symbol()}",
         #"0x4554482d43000000000000000000000000000000000000000000000000000000",  # ETH-C
         ilk_want,
         ilk_yieldBearing,
         gemJoinAdapter,
-        osmProxy_want,
-        osmProxy_yieldBearing,
-        price_oracle_want_to_eth
+        #osmProxy_want,
+        #osmProxy_yieldBearing,
+        #price_oracle_want_to_eth
     )
 
     original_strategy_address = history[-1].events["Deployed"]["original"]
@@ -62,17 +63,17 @@ def test_prod(
     print(
         f"strat balanceOf DAI: {(yvault.balanceOf(strategy)/1e18 * yvault.pricePerShare()/1e18):_}"
     )
-
+    assert vault.strategies(strategy).dict()["totalLoss"] == 0
     # Sleep for 2 days
     chain.sleep(60 * 60 * 24 * 2)
     chain.mine(1)
-
+    assert vault.strategies(strategy).dict()["totalLoss"] == 0
     # Send some profit to yvDAI
     #dai.transfer(yvault, yvault.totalDebt() * 0.02, {"from": dai_whale})
     dai.transfer(yvault, "1000 ether", {"from": dai_whale})
-    strategy.setLeaveDebtBehind(False, {"from": gov})
+    #strategy.setLeaveDebtBehind(False, {"from": gov})
     tx = strategy.harvest({"from": gov})
-
+    assert vault.strategies(strategy).dict()["totalLoss"] == 0
     print(f"After second harvest")
     print(f"strat estimatedTotalAssets: {strategy.estimatedTotalAssets()/1e18:_}")
     print(f"strat balanceOf yvDAI: {yvault.balanceOf(strategy)/1e18:_}")
@@ -84,10 +85,10 @@ def test_prod(
     assert vault.strategies(strategy).dict()["totalLoss"] == 0
     chain.sleep(60 * 60 * 8)
     chain.mine(1)
-
+    assert vault.strategies(strategy).dict()["totalLoss"] == 0
     vault.updateStrategyDebtRatio(strategy, 0, {"from": gov})
-    strategy.harvest({"from": gov})
-
+    lossyharvest = strategy.harvest({"from": gov})
+    assert vault.strategies(strategy).dict()["totalLoss"] > 0
     print(f"After third harvest")
     print(f"strat estimatedTotalAssets: {strategy.estimatedTotalAssets()/1e18:_}")
     print(f"strat balanceOf yvDAI: {yvault.balanceOf(strategy)/1e18:_}")
@@ -96,5 +97,7 @@ def test_prod(
     )
     print(f"totalLoss: {vault.strategies(strategy).dict()['totalLoss']/1e18:_}")
 
-    assert vault.strategies(strategy).dict()["totalLoss"] < Wei("0.75 ether")
+    #assert vault.strategies(strategy).dict()["totalLoss"] < Wei("0.75 ether")
     assert vault.strategies(strategy).dict()["totalDebt"] == 0
+
+    assert 0 == 1

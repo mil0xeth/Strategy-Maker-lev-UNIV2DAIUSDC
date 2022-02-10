@@ -5,6 +5,7 @@ from brownie import Contract, reverts
 
 def test_migration(
     chain,
+    wsteth,
     token,
     vault,
     yvault,
@@ -15,14 +16,19 @@ def test_migration(
     gov,
     user,
     cloner,
-    RELATIVE_APPROX,
+    ilk_want,
+    ilk_yieldBearing,
+    gemJoinAdapter,
+    RELATIVE_APPROX_LOSSY,
+    osmProxy_want,
+    osmProxy_yieldBearing
 ):
     # Deposit to the vault and harvest
     token.approve(vault.address, amount, {"from": user})
     vault.deposit(amount, {"from": user})
     chain.sleep(1)
     strategy.harvest({"from": gov})
-    assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
+    assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX_LOSSY) == amount
 
     # migrate to a new strategy
     new_strategy = Strategy.at(
@@ -33,20 +39,20 @@ def test_migration(
             strategist,
             yvault,
             "name",
-            strategy.ilk_want(),
-            strategy.ilk_yieldBearing(),
-            strategy.gemJoinAdapter(),
-            strategy.wantToUSDOSMProxy(),
-            strategy.yieldBearingToUSDOSMProxy(),
-            strategy.chainlinkWantToETHPriceFeed(),
+            ilk_want,
+            ilk_yieldBearing,
+            gemJoinAdapter,
+            #strategy.wantToUSDOSMProxy(),
+            #strategy.yieldBearingToUSDOSMProxy(),
+            #strategy.chainlinkWantToETHPriceFeed(),
         ).return_value
     )
 
     vault.migrateStrategy(strategy, new_strategy, {"from": gov})
 
     # Allow the new strategy to query the OSM proxy
-    osmProxy_want = Contract(strategy.wantToUSDOSMProxy())
-    osmProxy_yieldBearing = Contract(strategy.yieldBearingToUSDOSMProxy())
+    #osmProxy_want = Contract(strategy.wantToUSDOSMProxy())
+    #osmProxy_yieldBearing = Contract(strategy.yieldBearingToUSDOSMProxy())
     osmProxy_want.setAuthorized(new_strategy, {"from": gov})
     osmProxy_yieldBearing.setAuthorized(new_strategy, {"from": gov})
 
@@ -54,9 +60,9 @@ def test_migration(
     new_strategy.shiftToCdp(orig_cdp_id, {"from": gov})
     new_strategy.harvest({"from": gov})
 
-    assert new_strategy.balanceOfMakerVault() == amount
+    assert pytest.approx(wsteth.getStETHByWstETH(new_strategy.balanceOfMakerVault()), rel=RELATIVE_APPROX_LOSSY) == amount
     assert (
-        pytest.approx(new_strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX)
+        pytest.approx(new_strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX_LOSSY)
         == amount
     )
     assert new_strategy.cdpId() == orig_cdp_id
@@ -78,13 +84,13 @@ def test_yvault_migration(
     yvault,
     new_dai_yvault,
     dai,
-    RELATIVE_APPROX,
+    RELATIVE_APPROX_LOSSY,
 ):
     token.approve(vault.address, amount, {"from": user})
     vault.deposit(amount, {"from": user})
     chain.sleep(1)
     strategy.harvest({"from": gov})
-    assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
+    assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX_LOSSY) == amount
 
     balanceBefore = yvault.balanceOf(strategy) * yvault.pricePerShare() / 1e18
 
@@ -96,11 +102,11 @@ def test_yvault_migration(
     assert (
         pytest.approx(
             new_dai_yvault.balanceOf(strategy) * new_dai_yvault.pricePerShare() / 1e18,
-            rel=RELATIVE_APPROX,
+            rel=RELATIVE_APPROX_LOSSY,
         )
         == balanceBefore
     )
-    assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
+    assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX_LOSSY) == amount
 
 
 def test_yvault_migration_with_no_assets(

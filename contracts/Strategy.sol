@@ -16,7 +16,7 @@ import "./libraries/MakerDaiDelegateLib.sol";
 //import "../interfaces/chainlink/AggregatorInterface.sol";
 import "../interfaces/swap/ISwap.sol";
 import "../interfaces/yearn/IBaseFee.sol";
-import "../interfaces/yearn/IOSMedianizer.sol";
+//import "../interfaces/yearn/IOSMedianizer.sol";
 import "../interfaces/yearn/IVault.sol";
 
 import "../interfaces/curve/Curve.sol";
@@ -29,7 +29,7 @@ contract Strategy is BaseStrategy {
     using Address for address;
     using SafeMath for uint256;
 
-    event DebugTokenHeldByStrategy(uint256 _number, uint _value);
+    event Debug(uint256 _number, uint _value);
 
     //Hardcoded Options: yieldBearing, Referal:
     IWstETH internal constant yieldBearing =  IWstETH(0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0);
@@ -81,6 +81,9 @@ contract Strategy is BaseStrategy {
     // Maker Oracle Security Module
     //IOSMedianizer public wantToUSDOSMProxy;
     //IOSMedianizer public yieldBearingToUSDOSMProxy;
+    //SET TO ETH for NOW
+    //address public yieldBearingToUSDOSMProxy = 0xCF63089A8aD2a9D8BD6Bb8022f3190EB7e1eD0f1;
+    address public yieldBearingToUSDOSMProxy;
 
     // Use Chainlink oracle to obtain latest want/ETH price
     //AggregatorInterface public chainlinkWantToETHPriceFeed;
@@ -110,10 +113,13 @@ contract Strategy is BaseStrategy {
     uint256 public maxAcceptableBaseFee;
 
     // Maximum acceptable loss on investment yVault withdrawal. Default to 0.01%.
-    uint256 public maxLoss;
+    uint256 internal maxLoss;
+
+    // Repayment below debt floor amount that is partially repaid with free investmentotken and partially flashloan 
+    uint256 internal totalRepayAmount;
 
     // If set to true the strategy will never try to repay debt by selling want
-    bool internal retainDebtFloor;
+    //bool internal retainDebtFloor;
 
     // Name of the strategy
     string internal strategyName;
@@ -190,8 +196,12 @@ contract Strategy is BaseStrategy {
         ilk_want = _ilk_want;
         ilk_yieldBearing = _ilk_yieldBearing;
         gemJoinAdapter = _gemJoin;
+        //old:
         //wantToUSDOSMProxy = IOSMedianizer(_wantToUSDOSMProxy);
         //yieldBearingToUSDOSMProxy = IOSMedianizer(_yieldBearingToUSDOSMProxy);
+        //new: addresses:
+        //wantToUSDOSMProxy = _wantToUSDOSMProxy;
+        //yieldBearingToUSDOSMProxy = _yieldBearingToUSDOSMProxy;
         //chainlinkWantToETHPriceFeed = AggregatorInterface(_chainlinkWantToETHPriceFeed);
     
         //maxSingleTrade = 1_000 * 1e18;
@@ -217,7 +227,7 @@ contract Strategy is BaseStrategy {
         collateralizationRatio = (225 * WAD) / 100;
 
         // If we lose money in yvDAI then we are not OK selling want to repay it
-        retainDebtFloor = false;
+        //retainDebtFloor = false;
 
         // Define maximum acceptable loss on withdrawal to be 0.01%.
         maxLoss = 100;
@@ -231,14 +241,6 @@ contract Strategy is BaseStrategy {
     receive() external payable {}
 
     // ----------------- SETTERS & MIGRATION -----------------
-
-    // Maximum acceptable base fee of current block to take on more debt
-    function setMaxAcceptableBaseFee(uint256 _maxAcceptableBaseFee)
-        external
-        onlyEmergencyAuthorized
-    {
-        maxAcceptableBaseFee = _maxAcceptableBaseFee;
-    }
 
     // Target collateralization ratio to maintain within bounds
     function setCollateralizationRatio(uint256 _collateralizationRatio)
@@ -275,7 +277,7 @@ contract Strategy is BaseStrategy {
     {
         retainDebtFloor = _retainDebtFloor;
     }
-*/
+
 
     // Max slippage to accept when withdrawing from yVault
     function setMaxLoss(uint256 _maxLoss) external onlyVaultManagers {
@@ -283,8 +285,18 @@ contract Strategy is BaseStrategy {
         maxLoss = _maxLoss;
     }
 
+    // Maximum acceptable base fee of current block to take on more debt
+    function setMaxAcceptableBaseFee(uint256 _maxAcceptableBaseFee)
+        external
+        onlyEmergencyAuthorized
+    {
+        maxAcceptableBaseFee = _maxAcceptableBaseFee;
+    }
 
-/* 
+
+*/
+
+ 
  //SIZE OPTIMISATION 
     // Required to move funds to a new cdp and use a different cdpId after migration
     // Should only be called by governance as it will move funds
@@ -303,7 +315,7 @@ contract Strategy is BaseStrategy {
         yVault = newYVault;
         _depositInvestmentTokenInYVault();
     }
-
+/*
     // Allow address to manage Maker's CDP
     function grantCdpManagingRightsToUser(address user, bool allow)
         external
@@ -320,7 +332,7 @@ contract Strategy is BaseStrategy {
             router = sushiswapRouter;
         }
     }
-
+*/
     // Allow external debt repayment
     // Attempt to take currentRatio to target c-ratio
     // Passing zero will repay all debt if possible
@@ -330,7 +342,7 @@ contract Strategy is BaseStrategy {
     {
         _repayDebt(currentRatio);
     }
-
+/*
     // Allow repayment of an arbitrary amount of Dai without having to
     // grant access to the CDP in case of an emergency
     // Difference with `emergencyDebtRepayment` function above is that here we
@@ -376,63 +388,74 @@ contract Strategy is BaseStrategy {
         )
     {
         uint256 totalDebt = vault.strategies(address(this)).totalDebt;
-
         // Claim rewards from yVault
         _takeYVaultProfit();
-
+        //1425 DAI profit --> 0.43 ETH
         uint256 totalAssetsAfterProfit = estimatedTotalAssets();
-
-        _profit = totalAssetsAfterProfit > totalDebt
+        //slightly overestimates ETH, but take profit is good
+        _profit = totalAssetsAfterProfit > totalDebt // && totalAssetsAfterProfit - totalDebt > 1e18
             ? totalAssetsAfterProfit.sub(totalDebt)
             : 0;
-
+        emit Debug(2, _profit);
+        //444527710687637951
         uint256 _amountFreed;
-        (_amountFreed, _loss) = liquidatePosition(
-            _debtOutstanding.add(_profit)
-        );
+        (_amountFreed, _loss) = liquidatePosition(_debtOutstanding.add(_profit));
+        //444527710687637951 GOOD
+        // SOME LOSS!
         _debtPayment = Math.min(_debtOutstanding, _amountFreed);
-
+        emit Debug(3, _loss);
+        //Net profit and loss calculation
         if (_loss > _profit) {
-            // Example:
-            // debtOutstanding 100, profit 50, _amountFreed 100, _loss 50
-            // loss should be 0, (50-50)
-            // profit should endup in 0
             _loss = _loss.sub(_profit);
             _profit = 0;
         } else {
-            // Example:
-            // debtOutstanding 100, profit 50, _amountFreed 140, _loss 10
-            // _profit should be 40, (50 profit - 10 loss)
-            // loss should end up in be 0
             _profit = _profit.sub(_loss);
             _loss = 0;
         }
+        emit Debug(4, _profit);
+        //444518976306977505
+        //--> _loss = 8734380660446
+        //emit Debug(4, _amountFreed);
+        //should be: 444518976306977505
+        emit Debug(5, _loss);
+        //set to 0
+        emit Debug(6, balanceOfWant());
+        //444518976306977505
+        emit Debug(7, _debtOutstanding);
+        //want.balanceOf(this) >= _debtPayment + _profit
     }
 
 
     function adjustPosition(uint256 _debtOutstanding) internal override {
+        address vaultYO = 0x1596Ff8ED308a83897a731F3C1e814B19E11D68c;
+        emit Debug(666, want.balanceOf(vaultYO));
+        emit Debug(667, vault.strategies(address(this)).totalDebt);
         // Update accumulated stability fees,  Update the debt ceiling using DSS Auto Line
         MakerDaiDelegateLib.keepBasicMakerHygiene(ilk_yieldBearing);
-        //emit DebugTokenHeldByStrategy(21, _debtOutstanding);
-        //emit DebugTokenHeldByStrategy(22, balanceOfWant());
+        emit Debug(9999, _debtOutstanding);
+        //emit Debug(101, balanceOfWant());
+        //want = 0
         // If we have enough want to convert and deposit more into the maker vault, we do it
         if (balanceOfWant() > _debtOutstanding) {
             //Determine amount of Want to Deposit
             //amount initially in want
             //exchange want to yieldBearing to later deposit and overwrite _amount variable to yieldBearing amount
+            emit Debug(102, balanceOfWant());
             uint256 _amount = _swapWantToYieldBearing(balanceOfWant().sub(_debtOutstanding));
             //Check Allowance to lock Collateral 
             _checkAllowance(gemJoinAdapter, address(yieldBearing), _amount);
             //uint256 daiToMint = _amount.mul(_getYieldBearingUSDPrice()).mul(WAD).div(collateralizationRatio).div(WAD);
+            emit Debug(103, balanceOfWant());
             _lockCollateralAndMintDai(_amount, _amount.mul(_getYieldBearingUSDPrice()).mul(WAD).div(collateralizationRatio).div(WAD));
-
         }
-        
         // Allow the ratio to move a bit in either direction to avoid cycles
         uint256 currentRatio = getCurrentMakerVaultRatio();
         //if current ratio is below goal ratio:
         if (currentRatio < collateralizationRatio.sub(rebalanceTolerance)) {
+            //emit Debug(22, balanceOfWant());
+            emit Debug(104, balanceOfWant());
             _repayDebt(currentRatio);
+            //emit Debug(23, _valueOfInvestment());
         } else if (
             currentRatio > collateralizationRatio.add(rebalanceTolerance)
         ) {
@@ -443,6 +466,9 @@ contract Strategy is BaseStrategy {
 
         // If we have anything left to invest then deposit into the yVault
         _depositInvestmentTokenInYVault();
+        //emit Debug(105, balanceOfWant());
+        //address vaultYO = 0x1596Ff8ED308a83897a731F3C1e814B19E11D68c;
+        //emit Debug(106, want.balanceOf(vaultYO));
     }
 
     function liquidatePosition(uint256 _wantAmountNeeded)
@@ -460,10 +486,10 @@ contract Strategy is BaseStrategy {
             return (_wantAmountNeeded, 0);
         }
         // Amount of yieldBearing necessary to be swapped to pay off necessary want, minus free want
-        //emit DebugTokenHeldByStrategy(0, _wantAmountNeeded);
-        //emit DebugTokenHeldByStrategy(1, _valueOfInvestment());
+        emit Debug(0, _wantAmountNeeded);
+        //emit Debug(1, _valueOfInvestment());
         uint256 yieldBearingAmountToFree = _convertWantAmountToYieldBearingWithLosses(_wantAmountNeeded.sub(wantBalance));
-        //emit DebugTokenHeldByStrategy(3, yieldBearingAmountToFree); 
+        //emit Debug(3, yieldBearingAmountToFree); 
         // Is there enough free yield bearing to pay off everything?
         if (yieldBearingBalance >= yieldBearingAmountToFree) {
             _swapYieldBearingToWant(yieldBearingAmountToFree);
@@ -488,22 +514,21 @@ contract Strategy is BaseStrategy {
         uint256 collateralIT = collateralBalance.mul(collateralPrice).div(WAD);
         uint256 newRatio = collateralIT.sub(yieldBearingAmountToFreeIT).mul(WAD).div(totalDebt);
         //Attempt to repay necessary debt to restore the target collateralization ratio 
-        //emit DebugTokenHeldByStrategy(11, newRatio);
-        //emit DebugTokenHeldByStrategy(12, yieldBearingAmountToFree);
-        //emit DebugTokenHeldByStrategy(13, newRatio);
+        //emit Debug(11, newRatio);
+        //emit Debug(12, yieldBearingAmountToFree);
         _repayDebt(newRatio);   
         //scenario 1: unlock all debt with yvdai --> 0 debt, ALL COLLATERAL LOCKED (balanceOfMakerVault = 21) --> unlock ALL  ---> no yvDAI
         //scenario 2: flashloan unlock all debt ---> 0 debt, wsteth --> don't unlock (balanceOfMakerVault = 0)  ---> no yvDAI
         //scenario 3: above floor: ---> nonzero debt, collateral locked --> (balanceOfMakerVault = 41) unlock   ---> YES yvDAI
 
-        //emit DebugTokenHeldByStrategy(91, balanceOfDebt());
-        emit DebugTokenHeldByStrategy(92, _valueOfInvestment());
-        //emit DebugTokenHeldByStrategy(93, getCurrentMakerVaultRatio());
-        emit DebugTokenHeldByStrategy(94, balanceOfInvestmentToken());
-        emit DebugTokenHeldByStrategy(3, yieldBearing.balanceOf(address(this)));
-        //emit DebugTokenHeldByStrategy(4, yieldBearingAmountToFree);
-        //emit DebugTokenHeldByStrategy(3, getCurrentMakerVaultRatio());
-        //emit DebugTokenHeldByStrategy(95, balanceOfMakerVault());
+        //emit Debug(91, balanceOfDebt());
+        //emit Debug(92, _valueOfInvestment());
+        //emit Debug(93, getCurrentMakerVaultRatio());
+        //emit Debug(94, balanceOfInvestmentToken());
+        //emit Debug(3, yieldBearing.balanceOf(address(this)));
+        //emit Debug(4, yieldBearingAmountToFree);
+        //emit Debug(3, getCurrentMakerVaultRatio());
+        //emit Debug(95, balanceOfMakerVault());
 
         //if (balanceOfDebt()!=0){
         //if (balanceOfDebt() != 0 && yieldBearing.balanceOf(address(this)) < yieldBearingAmountToFree){
@@ -514,7 +539,7 @@ contract Strategy is BaseStrategy {
         //Swap unlocked collateral and free yieldBearing into want
         //SWAP INTO WANT
         _swapYieldBearingToWant(yieldBearingAmountToFree + yieldBearingBalance);
-        //emit DebugTokenHeldByStrategy(666, want.balanceOf(address(this)));
+        //emit Debug(666, want.balanceOf(address(this)));
 
         //LOSS CALCULATION after WANT has been UNLOCKED
         //update free want after liquidating
@@ -622,7 +647,7 @@ contract Strategy is BaseStrategy {
         // new_debt = current_debt * current_ratio / desired_ratio
         // and the amount to repay is the difference between current_debt and new_debt
         uint256 newDebt = currentDebt.mul(currentRatio).div(collateralizationRatio);
-        emit DebugTokenHeldByStrategy(14, newDebt);
+        //emit Debug(14, newDebt);
 
         //amountToRepay denoted in Investment Token    
         uint256 amountToRepay;
@@ -638,11 +663,11 @@ contract Strategy is BaseStrategy {
         if (newDebt <= debtFloor) {
             //Below Debt Floor --> Need to pay off entire debt!
             //Check available DAI and yvDAI combined is enough to pay back debt fully
-            if (_valueOfInvestment().add(balanceIT) >= currentDebt) {
-                // Pay the entire debt if we have enough investment token
-                amountToRepay = currentDebt;
-                //emit DebugTokenHeldByStrategy(54321, _valueOfInvestment().add(balanceIT));
-                //emit DebugTokenHeldByStrategy(12345, currentDebt);
+            if (_valueOfInvestment().add(balanceIT) >= currentDebt.add(1)) {
+                // Pay the entire debt if we have enough investment token; add(1) 1 Wei to stop dust reverting errors
+                amountToRepay = currentDebt.add(1);
+                //emit Debug(54321, _valueOfInvestment().add(balanceIT));
+                //emit Debug(12345, currentDebt);
             } else {
                 // Not enough DAI and yvDAI available to pay off debt. Need to unlock collateral.
                 // pay just 0.1 cent above debtFloor (best effort without liquidating want)
@@ -655,26 +680,24 @@ contract Strategy is BaseStrategy {
             // needed to obtain a healthy collateralization ratio
             amountToRepay = currentDebt.sub(newDebt);
         }
-        //emit DebugTokenHeldByStrategy(15, amountToRepay);
         //----WITHDRAWING AND PAYMENT
         //Need to withdraw from yVault?
         if (balanceIT < amountToRepay) {
             //Withdraw up to maximum of yvault
-            //amonutToRepay = 50000 
             _withdrawFromYVault(amountToRepay.sub(balanceIT));
         }
         //FREE DAI IN WALLET NOW. 
         balanceIT = balanceOfInvestmentToken();
-        //emit DebugTokenHeldByStrategy(16, balanceIT);
+        //emit Debug(16, balanceIT);
         //Repay Debt (max. down to debt floor)
         _repayInvestmentTokenDebt(amountToRepay);
-        //emit DebugTokenHeldByStrategy(17, _valueOfInvestment());
+        //emit Debug(17, _valueOfInvestment());
         //scenario 1: debt 100k-->40k, amountToRepay = 60k, 60k free DAI USED, minimumDebt = 0 GOOD! free DAI = 60k >= amount 
         //scenario 2: debt 100k-->15001, amountToRepay = 84999, free DAI used 84.999, minimumDebt = 15001 GOOD! 8499k >= amount
         //scenario3: debt 100k --> 99900, free DAI = 200, amountToRepay = 59800, minimumDebt = 0     200 DAI < amount
         //scenario4: debt 100k --> 99000, free DAI = 200, amountToRepay = 84800, minimumDebt = 15001  200 DAI < amount
         
-        //emit DebugTokenHeldByStrategy(18, balanceOfDebt());
+        //emit Debug(18, balanceOfDebt());
         currentDebt = balanceOfDebt();
         //full maker debt paid down, unlock all collateral
         if (currentDebt == 0) {
@@ -689,41 +712,21 @@ contract Strategy is BaseStrategy {
             minimumDebt = currentDebt.sub(newDebt);
             //minimumDebt = difference in what yvault was not able to pay up for
         }
-        
+        //emit Debug(0, minimumDebt);
         //For repayment without enough YVault token OR below debt floor: Flashloan
         if (minimumDebt > 0) { 
             //sell collateral to repay 15001 DAI
-            //emit DebugTokenHeldByStrategy(0, balanceOfDebt());
-            //emit DebugTokenHeldByStrategy(1, _valueOfInvestment());
-            //emit DebugTokenHeldByStrategy(0, minimumDebt);
-            //emit DebugTokenHeldByStrategy(80085, minimumDebt);
-            //emit DebugTokenHeldByStrategy(800851, balanceOfDebt());
-            _withdrawFromYVault(Math.min(_valueOfInvestment(), minimumDebt));
+            //emit Debug(0, balanceOfDebt());
+            //emit Debug(1, _valueOfInvestment());
+            //emit Debug(0, minimumDebt);
+            //emit Debug(80085, minimumDebt);
+            //emit Debug(800851, balanceOfDebt());
+            //20k repay: 10k DAI freed 
+            totalRepayAmount = minimumDebt.add(1); 
+            _withdrawFromYVault(Math.min(_valueOfInvestment(), totalRepayAmount));
             //amountToRepay = minimumDebt - _withdrawFromYVault(Math.min(_valueOfInvestment(), minimumDebt)); 
-            emit DebugTokenHeldByStrategy(1337, balanceOfInvestmentToken());
-            // if above 0, but below 0.1 DAI, set minimum to 0.1 DAI
-            //if (amountToRepay < 1e18 && amountToRepay > 0) {
-            //amountToRepay = 1e18;
-            //}
-            emit DebugTokenHeldByStrategy(1336, Math.min(minimumDebt - amountToRepay, currentDebt));
-            emit DebugTokenHeldByStrategy(1335, amountToRepay);
-            
-            //_repayInvestmentTokenDebt(Math.min(minimumDebt - amountToRepay, currentDebt));
-            //_freeCollateralAndRepayDai(0, Math.min(minimumDebt - amountToRepay, currentDebt));
-            //minimumDebt = 150010000
-            //amountToRepay = 333
-            //currentDebt = 15001000
-            //minimumDebt - amountToRepay = 149996999
- 
-            emit DebugTokenHeldByStrategy(313, balanceOfInvestmentToken());
-            //emit DebugTokenHeldByStrategy(696111, _valueOfInvestment());
-            //MakerDaiDelegateLib.doAaveFlashLoan(address(investmentToken), minimumDebt - balanceOfInvestmentToken(), gemJoinAdapter, cdpId, ilk_yieldBearing);
-            MakerDaiDelegateLib.doAaveFlashLoan(address(investmentToken), minimumDebt, gemJoinAdapter, cdpId, ilk_yieldBearing);
-            emit DebugTokenHeldByStrategy(1334, balanceOfDebt());
-            //emit DebugTokenHeldByStrategy(80081350, balanceOfInvestmentToken());
-            //emit DebugTokenHeldByStrategy(1071, balanceOfDebt());
-            //doAaveFlashLoan(_investmentToken, true, _remainingDebt);
-
+            //emit Debug(1337, balanceOfInvestmentToken());
+            MakerDaiDelegateLib.initiateAaveFlashLoan(address(investmentToken), totalRepayAmount, gemJoinAdapter, cdpId, ilk_yieldBearing);
         }
     }
 
@@ -733,6 +736,7 @@ contract Strategy is BaseStrategy {
         uint256 _fee,
         bytes calldata _params
     ) external {
+        //emit Debug(313, _amount);
         MakerDaiDelegateLib.aaveExecuteOperation(
             _reserve, 
             _amount, 
@@ -742,7 +746,8 @@ contract Strategy is BaseStrategy {
             address(yieldBearing),
             address(router),
             ilk_yieldBearing,
-            retainDebtFloor
+            totalRepayAmount
+            //retainDebtFloor
             );
     }
 
@@ -873,16 +878,16 @@ contract Strategy is BaseStrategy {
             return 0;
         }
         //--WSTETH --> STETH
-        //emit DebugTokenHeldByStrategy(6969, yieldBearing.balanceOf(address(this)));
+        //emit Debug(6969, yieldBearing.balanceOf(address(this)));
         _amount = Math.min(_amount, yieldBearing.balanceOf(address(this)));
         _amount = yieldBearing.unwrap(_amount);
-        //emit DebugTokenHeldByStrategy(69, _amount);
-        //emit DebugTokenHeldByStrategy(111, StableSwapSTETH.get_dy(1, 0, _amount));  
+        //emit Debug(69, _amount);
+        //emit Debug(111, StableSwapSTETH.get_dy(1, 0, _amount));  
         //---STEHT --> ETH
         _checkAllowance(address(StableSwapSTETH), address(stETH), _amount);
         StableSwapSTETH.exchange(1, 0, _amount, _amount*(10000-slippageProtectionOut)/10000);
-        //emit DebugTokenHeldByStrategy(313, want.balanceOf(address(this)));
-        //emit DebugTokenHeldByStrategy(313, stETH.balanceOf(address(this)));
+        //emit Debug(313, want.balanceOf(address(this)));
+        //emit Debug(313, stETH.balanceOf(address(this)));
         //Re-Wrap it back up: ETH to WETH
         ethwrapping.deposit{value: address(this).balance}();
         return want.balanceOf(address(this));
@@ -1003,59 +1008,19 @@ contract Strategy is BaseStrategy {
 
     // Returns the minimum price of yieldBearing available in DAI
     function _getYieldBearingUSDPrice() internal view returns (uint256) {
-        uint256 minPrice = MakerDaiDelegateLib.getSpotPrice(ilk_yieldBearing);
-
-        //No OSM Proxy for WSTETH at the moment, so everything commented:
-        /*
+        //No OSM Proxy for WSTETH at the moment, so everything testmode:
+        
         // Use price from spotter as base
-        uint256 minPrice = MakerDaiDelegateLib.getSpotPrice(ilk_yieldBearing);
-
-        // Peek the OSM to get current price
-        try yieldBearingToUSDOSMProxy.read() returns (
-            uint256 current,
-            bool currentIsValid
-        ) {
-            if (currentIsValid && current > 0) {
-                minPrice = Math.min(minPrice, current);
-            }
-        } catch {
-            // Ignore price peek()'d from OSM. Maybe we are no longer authorized.
-        }
-
-        // Peep the OSM to get future price
-        try yieldBearingToUSDOSMProxy.foresight() returns (
-            uint256 future,
-            bool futureIsValid
-        ) {
-            if (futureIsValid && future > 0) {
-                minPrice = Math.min(minPrice, future);
-            }
-        } catch {
-            // Ignore price peep()'d from OSM. Maybe we are no longer authorized.
-        }
-        */
+        //uint256 minPrice = MakerDaiDelegateLib.getSpotPrice(ilk_yieldBearing);
+        uint256 minPrice = MakerDaiDelegateLib.getYieldBearingOSMPrice(ilk_yieldBearing, yieldBearingToUSDOSMProxy);
+        
+        //end comment
         // If price is set to 0 then we hope no liquidations are taking place
         // Emergency scenarios can be handled via manual debt repayment or by
         // granting governance access to the CDP
         require(minPrice > 0); // dev: invalid spot price
+        //emit Debug(999, minPrice);
         return minPrice.mul(RAY).div(MakerDaiDelegateLib.getDaiPar());
-    }
-
-//    function t_valueOfInvestment() public view returns (uint256){
-//        return _valueOfInvestment();
-//    } 
-/*
-    function t_aaveDo(address _token, bool deficit, uint256 _flashBackUpAmount) public {
-        MakerDaiDelegateLib.doAaveFlashLoan(_token, deficit, _flashBackUpAmount);
-    } 
-*/
-    function t_getAmountsIn(uint256 totalDebt) public returns (uint256) {
-        //uint256 totalDebt = _amount.add(_fee);
-        //address[] memory path = new address[](2);
-        //path[0] = address(yieldBearing);
-        //path[1] = address(investmentToken);
-        return router.getAmountsIn(totalDebt, MakerDaiDelegateLib.getTokenOutPath(address(yieldBearing), address(investmentToken)))[0];
-        //return router.getAmountsIn(totalDebt, MakerDaiDelegateLib.getTokenOutPath(address(yieldBearing), address(investmentToken)))[0];
     }
 
     function _valueOfInvestment() internal view returns (uint256) {
@@ -1147,44 +1112,4 @@ contract Strategy is BaseStrategy {
         //Alternative: by price oracle
         //return amount.mul(_getWantUSDPrice()).div(_getYieldBearingUSDPrice());
     }
-/*
-    function _getTokenOutPath(address _token_in, address _token_out)
-        internal
-        pure
-        returns (address[] memory _path)
-    {
-        bool is_weth =
-            _token_in == address(WETH) || _token_out == address(WETH);
-        _path = new address[](is_weth ? 2 : 3);
-        _path[0] = _token_in;
-
-        if (is_weth) {
-            _path[1] = _token_out;
-        } else {
-            _path[1] = address(WETH);
-            _path[2] = _token_out;
-        }
-    }
-*/
-
-/*
-    function _sellAForB(
-        uint256 _amount,
-        address tokenA,
-        address tokenB
-    ) internal {
-        if (_amount == 0 || tokenA == tokenB) {
-            return;
-        }
-
-        _checkAllowance(address(router), tokenA, _amount);
-        router.swapExactTokensForTokens(
-            _amount,
-            0,
-            _getTokenOutPath(tokenA, tokenB),
-            address(this),
-            now
-        );
-    }
-*/
 }

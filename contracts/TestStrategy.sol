@@ -44,8 +44,12 @@ contract TestStrategy is Strategy {
     function _getPrice() public view returns (uint256) {
         return _getWantUSDPrice();
     }
-
 /*
+    function _getYieldBearingPrice() public view returns (uint256) {
+        return _getYieldBearingUSDPrice();
+    }
+
+
     function _getYieldBearingUSDPriceYo() public view returns (uint256) {
         return _getYieldBearingUSDPrice();
     }
@@ -58,8 +62,8 @@ contract TestStrategy is Strategy {
     function _getCurrentMakerVaultRatio() public view returns (uint256) {
         return getCurrentMakerVaultRatio();
     }
-*/
-/*
+
+
     function freeCollateral(uint256 collateralAmount, uint256 daiAmount) public {
         _checkAllowance(
             MakerDaiDelegateLib.daiJoinAddress(),
@@ -73,8 +77,14 @@ contract TestStrategy is Strategy {
         return _repayDebt(_amount);
     }
 
-    function setCustomOSM(IOSMedianizer _wantToUSDOSMProxy) public {
+    function setCustomWantOSM(IOSMedianizer _wantToUSDOSMProxy) public {
         wantToUSDOSMProxy = _wantToUSDOSMProxy;
     }
+
+    //Test Function
+    function setCustomOSM(IOSMedianizer _yieldBearingToUSDOSMProxy) public {
+        yieldBearingToUSDOSMProxy = address(_yieldBearingToUSDOSMProxy);
+    }
 */
+
 }

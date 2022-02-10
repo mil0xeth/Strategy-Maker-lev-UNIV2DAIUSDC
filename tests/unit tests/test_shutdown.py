@@ -77,7 +77,7 @@ def test_basic_shutdown(
     chain.mine(1)
 
     ## Make sure we are not living any debt behind (i.e: sell want if needed)
-    test_strategy.setLeaveDebtBehind(False, {"from": strategist})
+    #test_strategy.setLeaveDebtBehind(False, {"from": strategist})
 
     ## Set emergency
     test_strategy.setEmergencyExit({"from": strategist})

@@ -19,6 +19,9 @@ import "../../interfaces/Aave/ILendingPoolAddressesProvider.sol";
 import "../../interfaces/Aave/ILendingPool.sol";
 import "../../interfaces/swap/ISwap.sol";
 
+//OSM
+import "../../interfaces/yearn/IOSMedianizer.sol";
+
 library MakerDaiDelegateLib {
     using SafeERC20 for IERC20;
     using Address for address;
@@ -218,6 +221,40 @@ library MakerDaiDelegateLib {
         return liquidationRatio;
     }
 
+
+    function getYieldBearingOSMPrice(bytes32 _ilk_yieldBearing, address _yieldBearingToUSDOSMProxyAddress) public view returns (uint256) {
+        IOSMedianizer yieldBearingToUSDOSMProxy = IOSMedianizer(_yieldBearingToUSDOSMProxyAddress);
+        // Use price from spotter as base
+        uint256 minPrice = getSpotPrice(_ilk_yieldBearing);
+        // Peek the OSM to get current price
+        if (_yieldBearingToUSDOSMProxyAddress != address(0)) {
+            try yieldBearingToUSDOSMProxy.read() returns (
+                uint256 current,
+                bool currentIsValid
+            ) {
+                if (currentIsValid && current > 0) {
+                    minPrice = Math.min(minPrice, current);
+                }
+            } catch {
+                // Ignore price peek()'d from OSM. Maybe we are no longer authorized.
+            }
+
+            // Peep the OSM to get future price
+            try yieldBearingToUSDOSMProxy.foresight() returns (
+                uint256 future,
+                bool futureIsValid
+            ) {
+                if (futureIsValid && future > 0) {
+                    minPrice = Math.min(minPrice, future);
+                }
+            } catch {
+                // Ignore price peep()'d from OSM. Maybe we are no longer authorized.
+            }
+        }
+        return minPrice;
+    }
+
+
     function getSpotPrice(bytes32 ilk) public view returns (uint256) {
         VatLike vat = VatLike(manager.vat());
 
@@ -381,21 +418,21 @@ library MakerDaiDelegateLib {
 
 
     //AAVE FLASHLOAN:
-    function doAaveFlashLoan(address _token, uint256 _flashBackUpAmount, 
+    function initiateAaveFlashLoan(address _token, uint256 _totalRepayAmount, 
         address gemJoinFlash,
         uint256 cdpIdFlash,
-        bytes32 ilk_yieldBearing) public returns (uint256 amount) {
+        bytes32 ilk_yieldBearing) public {
         //we do not want to do aave flash loans for leveraging up. Fee could put us into liquidation
         //scenario: minimumDebt = 15001, only 14999 in investment Token --> paWithFlashloan = small --> alright!
         //scenario: minimumDebt to pay off = 40 000, debt = 40000 full 40000 in investment Token --> pay all off
         //scenario: minimumDebt to pay off = 40 000, debt = 100 000, 10 investment otkne --> pay = 10000
-        uint256 currentDebt = debtForCdp(cdpIdFlash, ilk_yieldBearing);
-        uint256 payWithFlashloan = _flashBackUpAmount - Math.min(IERC20(_token).balanceOf(address(this)), _flashBackUpAmount);
+        uint256 currentDebt = debtForCdp(cdpIdFlash, ilk_yieldBearing).add(1);
+        uint256 payWithFlashloan = _totalRepayAmount - Math.min(IERC20(_token).balanceOf(address(this)), _totalRepayAmount);
         //If entire debt can be paid off with investment tokens
-        if (currentDebt == _flashBackUpAmount && payWithFlashloan == 0) {
-            _checkAllowance(daiJoinAddress(), _token, debtForCdp(cdpIdFlash, ilk_yieldBearing));
-            wipeAndFreeGem(gemJoinFlash, cdpIdFlash, balanceOfCdp(cdpIdFlash, ilk_yieldBearing), debtForCdp(cdpIdFlash, ilk_yieldBearing));
-            return 0;
+        if (currentDebt == _totalRepayAmount && payWithFlashloan == 0) {
+            _checkAllowance(daiJoinAddress(), _token, currentDebt);
+            wipeAndFreeGem(gemJoinFlash, cdpIdFlash, balanceOfCdp(cdpIdFlash, ilk_yieldBearing), currentDebt);
+            return;
         }
 
         if (payWithFlashloan < 1e17) {
@@ -413,24 +450,24 @@ library MakerDaiDelegateLib {
 
         //uint256 availableLiquidity = IERC20(_token).balanceOf(address(0x3dfd23A6c5E8BbcFc9581d2E864a68feb6a076d3));
         //amount = Math.min(availableLiquidity, payWithFlashloan);
-        amount = payWithFlashloan;
+        //amount = payWithFlashloan;
 
-        bytes memory data = abi.encode(deficit, amount);
+        bytes memory data = abi.encode(deficit, payWithFlashloan);
 
         //anyone can call aave flash loan to us. (for some reason. grrr)
         //awaitingFlash = true;
 
-        lendingPool.flashLoan(address(this), address(_token), amount, data);
+        lendingPool.flashLoan(address(this), address(_token), payWithFlashloan, data);
 
         //awaitingFlash = false;
 
-        emit Leverage(payWithFlashloan, amount, deficit, AAVE_LENDING);
+        emit Leverage(payWithFlashloan, payWithFlashloan, deficit, AAVE_LENDING);
     }
 
     //Aave calls this function after doing flash loan
     function aaveExecuteOperation(
         address _reserve,
-        uint256 _amount,
+        uint256 _flashloanAmount,
         uint256 _fee,
         //bytes calldata _params,
         address gemJoinFlash,
@@ -438,9 +475,10 @@ library MakerDaiDelegateLib {
         address yieldBearingAdd,
         address routerAdd,
         bytes32 ilk_yieldBearing,
-        bool retainDebtFloor
+        uint256 _totalRepayAmount
+        //bool retainDebtFloor
     ) external {
-        if (_amount == 0) {
+        if (_flashloanAmount == 0) {
             return;
         }
         //(bool deficit, uint256 amount) = abi.decode(_params, (bool, uint256));
@@ -448,33 +486,45 @@ library MakerDaiDelegateLib {
         //require(awaitingFlash, "Malicious");
         ISwap router = ISwap(routerAdd); 
         address investmentTokenAdd = _reserve;
+
+        //calculate how much is _totalRepayAmount
+        emit DebugDelegate(40, _totalRepayAmount);
+        emit DebugDelegate(41, _flashloanAmount);
         //Paying back AAVE needs to be +fee
-        uint256 aaveDebtAmount = _amount.add(_fee);
+        uint256 aaveDebtAmount = _flashloanAmount.add(_fee);
+        emit DebugDelegate(42, _totalRepayAmount);
         //How much yield bearing to trade to pay back AAVE
-        uint256 debtLeftToRepayInYieldBearing = router.getAmountsIn(
+        uint256 aaveDebtInYieldBearing = router.getAmountsIn(
             aaveDebtAmount, 
             getTokenOutPath(yieldBearingAdd, investmentTokenAdd)
         )[0];
         
-        //debt withdrawal _amount not more than current total debt, collateral withdrawal not more than total collateral
-        _amount = Math.min(_amount, debtForCdp(cdpIdFlash, ilk_yieldBearing));
-        debtLeftToRepayInYieldBearing = Math.min(debtLeftToRepayInYieldBearing, balanceOfCdp(cdpIdFlash, ilk_yieldBearing));
+        //DEBT WITHDRAWAL:
+        uint256 currentDebt = debtForCdp(cdpIdFlash, ilk_yieldBearing).add(1);
+        //_totalRepayAmount not more than current total debt, collateral withdrawal not more than total collateral
+        _totalRepayAmount = Math.min(_totalRepayAmount, currentDebt);
+        aaveDebtInYieldBearing = Math.min(aaveDebtInYieldBearing, balanceOfCdp(cdpIdFlash, ilk_yieldBearing));
 
         //if the remaining debt is below the debtFloor & retainDebtFloor == false --> pay off full debt
         //if the remaining debt is below the debtFloor & retainDebtFloor == true --> pay off only until debtFloor+1e
         //debtFloor.add(1e15)
-        if (debtForCdp(cdpIdFlash, ilk_yieldBearing) - _amount < debtFloor(ilk_yieldBearing)){
-            _amount = debtForCdp(cdpIdFlash, ilk_yieldBearing);
+        //30k debt - 30k repay = 0 < debtFloor --> total repay = full debt = 15k1
+        //30k debt - 20k repay = 10k < debtFloor --> total repay = full debt = 15k1
+        //30k debt - 15k repay = 15k < debtFloor --> total repay = full debt = 15k1
+        if (currentDebt - _totalRepayAmount < debtFloor(ilk_yieldBearing).add(1e15)){
+            _totalRepayAmount = currentDebt;
+        }
+        //if full debt is repaid: unlock collateral
+        if (_totalRepayAmount == currentDebt){
+            aaveDebtInYieldBearing = balanceOfCdp(cdpIdFlash, ilk_yieldBearing);
         }
 
-        if (_amount == debtForCdp(cdpIdFlash, ilk_yieldBearing)){
-            debtLeftToRepayInYieldBearing = balanceOfCdp(cdpIdFlash, ilk_yieldBearing);
-        }
-
-        _checkAllowance(daiJoinAddress(), investmentTokenAdd, debtForCdp(cdpIdFlash, ilk_yieldBearing));
-        wipeAndFreeGem(gemJoinFlash, cdpIdFlash, debtLeftToRepayInYieldBearing, _amount);
-        
-        //wipeAndFreeGem(gemJoinFlash, cdpIdFlash, balanceOfCdp(cdpIdFlash, ilk_yieldBearing), debtForCdp(cdpIdFlash, ilk_yieldBearing));
+        _checkAllowance(daiJoinAddress(), investmentTokenAdd, currentDebt);
+        emit DebugDelegate(98, aaveDebtInYieldBearing);
+        emit DebugDelegate(99, balanceOfCdp(cdpIdFlash, ilk_yieldBearing));
+        emit DebugDelegate(100, _totalRepayAmount);
+        //emit DebugDelegate(101, IERC20(_reserve).balanceOf(address(this)));
+        wipeAndFreeGem(gemJoinFlash, cdpIdFlash, aaveDebtInYieldBearing, _totalRepayAmount);        
         //--- MAKER DEBT REPAID & YIELD BEARING UNLOCKED!
 
         //--- REPAY AAVE

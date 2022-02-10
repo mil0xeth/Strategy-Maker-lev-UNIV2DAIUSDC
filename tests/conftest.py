@@ -2,18 +2,22 @@ import pytest
 from brownie import config, convert, interface, Contract
 ##################
 #Notes: Reamining issues:
+#0.: ProfitLimitRatio / LossLimitRatio clear up: healthCheck set to profit 50%, loss 1%
 #1.: OSMProxy for wstETH not implemented, still OSMProxy for ETH integrated
 #2.: productionVault needs to be updated for stETH and wstETH (+ETH) depending on want token
-#3.: yieldBearinToken in NewStrategy.sol is currently manually set, automatically set externally: setFunction, constructor, intializing
+#3.: yieldBearinToken in Strategy.sol is currently manually set, automatically set externally: setFunction, constructor, intializing
 #4.: Remove SIZE OPTIMISATION
-#5.: Referal: Functions, YieldBearing setFunction? Constructor
+#5.: Referal: Functions, YieldBearing setFunction? Constructor, why initializeThis?
 #6.: Why is _checkAllowance setting first allowance to zero, then to max? Why not immediately to max?
 #7.: compiler runs set back to 200
 #8.: WANT token other than ETH or WETH need to enable chainlinkWantToETHPriceFeed
-#9.: Disabled use of OSM Proxy for Want     
-#10.: Disabled use of OSM Proxy for yieldBearing (doesn't exist) 
+#9.: Disabled use of OSM Proxy for Want / Disabled use of OSM Proxy for yieldBearing (doesn't exist) 
 #11.: maxSingleTrade implementation
 #12.: Awaiting Flash in MakerDaiDelegateLib doAaveFlashloan ENABLE
+#13.: DISABLED tests, some of them due to prepareReturn
+#14.: test_operation.py-->test_emergency_exit doesn't work even though correct profit & loss is given and then very small remaining DAI is reinvsted --> !healthcheck (prepareReturn?)
+#15.: setLeaveDebtBehind <----> debtFloor ignore? Important?
+#16.: sometimes productionVault (actual mainnet yvWETH vault) does not allow 100% strategy allocation with 10_000 debtRatio (prepareReturn?)
 #################
 #Decide on Strategy Contract
 @pytest.fixture(autouse=True)
@@ -251,39 +255,43 @@ def router():
     yield sushiswap_router
 
 @pytest.fixture
-def amount(accounts, token, user):
+def amount(accounts, token, user, token_whale):
     amount = 50 * 10 ** token.decimals()
     # In order to get some funds for the token you are about to use,
     # it impersonate an exchange address to use it's funds.
-    reserve = accounts.at("0xF977814e90dA44bFA03b6295A0616a897441aceC", force=True)
+    reserve = token_whale
+    #reserve = accounts.at("0xF977814e90dA44bFA03b6295A0616a897441aceC", force=True)
     token.transfer(user, amount, {"from": reserve})
     yield amount
 
 @pytest.fixture
-def amount2(accounts, token, user2):
+def amount2(accounts, token, user2, token_whale):
     amount = 50 * 10 ** token.decimals()
     # In order to get some funds for the token you are about to use,
     # it impersonate an exchange address to use it's funds.
-    reserve = accounts.at("0xF977814e90dA44bFA03b6295A0616a897441aceC", force=True)
+    #reserve = accounts.at("0xF977814e90dA44bFA03b6295A0616a897441aceC", force=True)
+    reserve = token_whale
     token.transfer(user2, amount, {"from": reserve})
     yield amount
 
 
 @pytest.fixture
-def amountBIGTIME(accounts, token, user):
+def amountBIGTIME(accounts, token, user, token_whale):
     amount = 20000 * 10 ** token.decimals()
     # In order to get some funds for the token you are about to use,
     # it impersonate an exchange address to use it's funds.
-    reserve = accounts.at("0xF977814e90dA44bFA03b6295A0616a897441aceC", force=True)
+    #reserve = accounts.at("0xF977814e90dA44bFA03b6295A0616a897441aceC", force=True)
+    reserve = token_whale
     token.transfer(user, amount, {"from": reserve})
     yield amount
 
 @pytest.fixture
-def amountBIGTIME2(accounts, token, user2):
+def amountBIGTIME2(accounts, token, user2, token_whale):
     amount = 6000 * 10 ** token.decimals()
     # In order to get some funds for the token you are about to use,
     # it impersonate an exchange address to use it's funds.
-    reserve = accounts.at("0xF977814e90dA44bFA03b6295A0616a897441aceC", force=True)
+    #reserve = accounts.at("0xF977814e90dA44bFA03b6295A0616a897441aceC", force=True)
+    reserve = token_whale
     token.transfer(user2, amount, {"from": reserve})
     yield amount
 
@@ -317,6 +325,14 @@ def new_dai_yvault(pm, gov, rewards, guardian, management, dai):
     yield vault
 
 @pytest.fixture
+def new_full_dai_yvault(pm, gov, rewards, guardian, management, dai, new_dai_yvault, dai_whale):
+    yvDAI = new_dai_yvault
+    dai.approve(yvDAI.address, "500_000 ether", {"from": dai_whale})
+    yvDAI.deposit("500_000 ether", {"from": dai_whale})
+    yield yvDAI
+
+
+@pytest.fixture
 def osmProxy_want():
     # Allow the strategy to query the OSM proxy
     osm = Contract("0xCF63089A8aD2a9D8BD6Bb8022f3190EB7e1eD0f1")   # Points to ETH/USD
@@ -346,24 +362,39 @@ def gemJoinAdapter(yieldBearingNr):
 
 
 @pytest.fixture
-def healthCheck():
-    yield Contract("0xDDCea799fF1699e98EDF118e0629A974Df7DF012")
+def healthCheck(gov):
+    healthCheck = Contract("0xDDCea799fF1699e98EDF118e0629A974Df7DF012")
+    healthCheck.setProfitLimitRatio(1000, {"from": gov})  #default 100, # 1%
+    healthCheck.setlossLimitRatio(50, {"from": gov})  #default 1 # 0.01%
+    #healthCheck.setProfitLimitRatio(5000, {"from": gov})  #default 100, # 1%
+    #healthCheck.setlossLimitRatio(100, {"from": gov})  #default 1 # 0.01%
+    yield healthCheck
 
 @pytest.fixture
 def custom_osm(TestCustomOSM, gov):
     yield TestCustomOSM.deploy({"from": gov})
 
+@pytest.fixture
+def custom_osm(TestCustomOSM, gov):
+    yield TestCustomOSM.deploy({"from": gov})
 
 @pytest.fixture
-def strategy(vault, StrategyChoice, gov, osmProxy_want, osmProxy_yieldBearing, cloner):
+def strategy(vault, StrategyChoice, gov, osmProxy_want, osmProxy_yieldBearing, cloner, healthCheck):
     strategy = StrategyChoice.at(cloner.original())
+    #healthcheck = healthCheck
     #strategy.setRetainDebtFloorBool(False, {"from": gov})
     strategy.setDoHealthCheck(True, {"from": gov})
-
     # set a high acceptable max base fee to avoid changing test behavior
     #strategy.setMaxAcceptableBaseFee(1500 * 1e9, {"from": gov})
 
-    vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
+    vault.addStrategy(strategy, 
+        10_000, #debtRatio 
+        0,  #minDebtPerHarvest
+        2 ** 256 - 1,  #maxDebtPerHarvest
+        1_000, #performanceFee = 10% = 1_000
+        #5_000, #= 50%, profitLimitRatio, default = 100 = 1%
+        #2_500, #= 25% lossLimitRatio, default = 1 == 0.01%  
+        {"from": gov}) 
 
     # Allow the strategy to query the OSM proxy
     osmProxy_want.setAuthorized(strategy, {"from": gov})
@@ -382,7 +413,7 @@ def test_strategy(
     osmProxy_want,
     osmProxy_yieldBearing,
     #price_oracle_want_to_eth,
-    gov, ilk_yieldBearing, ilk_want
+    gov, ilk_yieldBearing, ilk_want, healthCheck
 ):
     strategy = strategist.deploy(
         TestStrategyChoice,
