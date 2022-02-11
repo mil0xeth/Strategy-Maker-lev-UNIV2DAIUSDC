@@ -39,41 +39,6 @@ def test_set_rebalance_tolerance_acl(
         strategy.setRebalanceTolerance(5, {"from": user})
 
 
-def test_set_max_loss_acl(strategy, gov, strategist, management, guardian, user):
-    strategy.setMaxLoss(10, {"from": gov})
-    assert strategy.maxLoss() == 10
-
-    strategy.setMaxLoss(11, {"from": management})
-    assert strategy.maxLoss() == 11
-
-    with reverts("!authorized"):
-        strategy.setMaxLoss(12, {"from": strategist})
-
-    with reverts("!authorized"):
-        strategy.setMaxLoss(13, {"from": guardian})
-
-    with reverts("!authorized"):
-        strategy.setMaxLoss(14, {"from": user})
-
-
-def test_set_leave_debt_behind_acl(
-    strategy, gov, strategist, management, guardian, user
-):
-    strategy.setLeaveDebtBehind(True, {"from": gov})
-    assert strategy.leaveDebtBehind() == True
-
-    strategy.setLeaveDebtBehind(False, {"from": strategist})
-    assert strategy.leaveDebtBehind() == False
-
-    strategy.setLeaveDebtBehind(True, {"from": management})
-    assert strategy.leaveDebtBehind() == True
-
-    strategy.setLeaveDebtBehind(False, {"from": guardian})
-    assert strategy.leaveDebtBehind() == False
-
-    with reverts("!authorized"):
-        strategy.setLeaveDebtBehind(True, {"from": user})
-
 
 def test_switch_dex_acl(strategy, gov, strategist, management, guardian, user):
     uniswap = "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"

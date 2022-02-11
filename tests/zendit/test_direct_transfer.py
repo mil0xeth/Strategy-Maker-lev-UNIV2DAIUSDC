@@ -47,7 +47,7 @@ def test_borrow_token_transfer_sends_to_yvault(
 
     chain.sleep(1)
     strategy.harvest({"from": gov})
-    assert borrow_token.balanceOf(strategy) == 0
+    assert borrow_token.balanceOf(strategy) < 1000
 
 
 def test_borrow_token_transfer_increments_profits(

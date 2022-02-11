@@ -99,5 +99,3 @@ def test_prod(
 
     #assert vault.strategies(strategy).dict()["totalLoss"] < Wei("0.75 ether")
     assert vault.strategies(strategy).dict()["totalDebt"] == 0
-
-    assert 0 == 1

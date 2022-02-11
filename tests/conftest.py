@@ -17,7 +17,7 @@ from brownie import config, convert, interface, Contract
 #13.: DISABLED tests, some of them due to prepareReturn
 #14.: test_operation.py-->test_emergency_exit doesn't work even though correct profit & loss is given and then very small remaining DAI is reinvsted --> !healthcheck (prepareReturn?)
 #15.: setLeaveDebtBehind <----> debtFloor ignore? Important?
-#16.: sometimes productionVault (actual mainnet yvWETH vault) does not allow 100% strategy allocation with 10_000 debtRatio (prepareReturn?)
+#16.: awaitingFlash with AAVE Flashloan variable include
 #################
 #Decide on Strategy Contract
 @pytest.fixture(autouse=True)
@@ -365,7 +365,7 @@ def gemJoinAdapter(yieldBearingNr):
 def healthCheck(gov):
     healthCheck = Contract("0xDDCea799fF1699e98EDF118e0629A974Df7DF012")
     healthCheck.setProfitLimitRatio(1000, {"from": gov})  #default 100, # 1%
-    healthCheck.setlossLimitRatio(50, {"from": gov})  #default 1 # 0.01%
+    healthCheck.setlossLimitRatio(100, {"from": gov})  #default 1 # 0.01%
     #healthCheck.setProfitLimitRatio(5000, {"from": gov})  #default 100, # 1%
     #healthCheck.setlossLimitRatio(100, {"from": gov})  #default 1 # 0.01%
     yield healthCheck

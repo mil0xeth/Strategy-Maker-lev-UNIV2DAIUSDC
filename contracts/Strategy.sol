@@ -36,7 +36,9 @@ contract Strategy is BaseStrategy {
     //Referal 
     address private referal = 0x35a83D4C1305451E0448fbCa96cAb29A7cCD0811;
     //SlippageProtection
-    
+
+    //AAVE Flashloan protection
+    //bool internal awaitingFlash = false;
     
     //----------- Lido & Curve & DAI INIT
     ISteth internal constant stETH =  ISteth(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84);
@@ -396,14 +398,14 @@ contract Strategy is BaseStrategy {
         _profit = totalAssetsAfterProfit > totalDebt // && totalAssetsAfterProfit - totalDebt > 1e18
             ? totalAssetsAfterProfit.sub(totalDebt)
             : 0;
-        emit Debug(2, _profit);
+        //emit Debug(2, _profit);
         //444527710687637951
         uint256 _amountFreed;
         (_amountFreed, _loss) = liquidatePosition(_debtOutstanding.add(_profit));
         //444527710687637951 GOOD
         // SOME LOSS!
         _debtPayment = Math.min(_debtOutstanding, _amountFreed);
-        emit Debug(3, _loss);
+        //emit Debug(3, _loss);
         //Net profit and loss calculation
         if (_loss > _profit) {
             _loss = _loss.sub(_profit);
@@ -412,24 +414,24 @@ contract Strategy is BaseStrategy {
             _profit = _profit.sub(_loss);
             _loss = 0;
         }
-        emit Debug(4, _profit);
+        //emit Debug(4, _profit);
         //444518976306977505
         //--> _loss = 8734380660446
         //emit Debug(4, _amountFreed);
         //should be: 444518976306977505
-        emit Debug(5, _loss);
+        //emit Debug(5, _loss);
         //set to 0
-        emit Debug(6, balanceOfWant());
+        //emit Debug(6, balanceOfWant());
         //444518976306977505
-        emit Debug(7, _debtOutstanding);
+        //emit Debug(7, _debtOutstanding);
         //want.balanceOf(this) >= _debtPayment + _profit
     }
 
 
     function adjustPosition(uint256 _debtOutstanding) internal override {
         address vaultYO = 0x1596Ff8ED308a83897a731F3C1e814B19E11D68c;
-        emit Debug(666, want.balanceOf(vaultYO));
-        emit Debug(667, vault.strategies(address(this)).totalDebt);
+        //emit Debug(666, want.balanceOf(vaultYO));
+        //emit Debug(667, vault.strategies(address(this)).totalDebt);
         // Update accumulated stability fees,  Update the debt ceiling using DSS Auto Line
         MakerDaiDelegateLib.keepBasicMakerHygiene(ilk_yieldBearing);
         emit Debug(9999, _debtOutstanding);
@@ -455,7 +457,7 @@ contract Strategy is BaseStrategy {
             //emit Debug(22, balanceOfWant());
             emit Debug(104, balanceOfWant());
             _repayDebt(currentRatio);
-            //emit Debug(23, _valueOfInvestment());
+            emit Debug(23, _valueOfInvestment());
         } else if (
             currentRatio > collateralizationRatio.add(rebalanceTolerance)
         ) {
@@ -466,6 +468,7 @@ contract Strategy is BaseStrategy {
 
         // If we have anything left to invest then deposit into the yVault
         _depositInvestmentTokenInYVault();
+        emit Debug(24, _valueOfInvestment());
         //emit Debug(105, balanceOfWant());
         //address vaultYO = 0x1596Ff8ED308a83897a731F3C1e814B19E11D68c;
         //emit Debug(106, want.balanceOf(vaultYO));
@@ -486,7 +489,7 @@ contract Strategy is BaseStrategy {
             return (_wantAmountNeeded, 0);
         }
         // Amount of yieldBearing necessary to be swapped to pay off necessary want, minus free want
-        emit Debug(0, _wantAmountNeeded);
+        //emit Debug(0, _wantAmountNeeded);
         //emit Debug(1, _valueOfInvestment());
         uint256 yieldBearingAmountToFree = _convertWantAmountToYieldBearingWithLosses(_wantAmountNeeded.sub(wantBalance));
         //emit Debug(3, yieldBearingAmountToFree); 
@@ -520,15 +523,6 @@ contract Strategy is BaseStrategy {
         //scenario 1: unlock all debt with yvdai --> 0 debt, ALL COLLATERAL LOCKED (balanceOfMakerVault = 21) --> unlock ALL  ---> no yvDAI
         //scenario 2: flashloan unlock all debt ---> 0 debt, wsteth --> don't unlock (balanceOfMakerVault = 0)  ---> no yvDAI
         //scenario 3: above floor: ---> nonzero debt, collateral locked --> (balanceOfMakerVault = 41) unlock   ---> YES yvDAI
-
-        //emit Debug(91, balanceOfDebt());
-        //emit Debug(92, _valueOfInvestment());
-        //emit Debug(93, getCurrentMakerVaultRatio());
-        //emit Debug(94, balanceOfInvestmentToken());
-        //emit Debug(3, yieldBearing.balanceOf(address(this)));
-        //emit Debug(4, yieldBearingAmountToFree);
-        //emit Debug(3, getCurrentMakerVaultRatio());
-        //emit Debug(95, balanceOfMakerVault());
 
         //if (balanceOfDebt()!=0){
         //if (balanceOfDebt() != 0 && yieldBearing.balanceOf(address(this)) < yieldBearingAmountToFree){
@@ -771,13 +765,12 @@ contract Strategy is BaseStrategy {
 
     function _depositInvestmentTokenInYVault() internal {
         uint256 balanceIT = balanceOfInvestmentToken();
-        if (balanceIT > 0) {
+        if (balanceIT > 100) {
             _checkAllowance(
                 address(yVault),
                 address(investmentToken),
                 balanceIT
             );
-
             yVault.deposit();
         }
     }
@@ -1019,7 +1012,6 @@ contract Strategy is BaseStrategy {
         // Emergency scenarios can be handled via manual debt repayment or by
         // granting governance access to the CDP
         require(minPrice > 0); // dev: invalid spot price
-        //emit Debug(999, minPrice);
         return minPrice.mul(RAY).div(MakerDaiDelegateLib.getDaiPar());
     }
 

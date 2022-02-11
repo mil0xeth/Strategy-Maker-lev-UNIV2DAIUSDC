@@ -32,14 +32,13 @@ contract TestStrategy is Strategy {
 //            _chainlinkWantToETHPriceFeed
         )
     {}
-/*
+
     function _liquidatePosition(uint256 _amountNeeded)
         public
         returns (uint256 _liquidatedAmount, uint256 _loss)
     {
         (_liquidatedAmount, _loss) = liquidatePosition(_amountNeeded);
     }
-*/
 
     function _getPrice() public view returns (uint256) {
         return _getWantUSDPrice();
@@ -63,7 +62,7 @@ contract TestStrategy is Strategy {
         return getCurrentMakerVaultRatio();
     }
 
-
+*/
     function freeCollateral(uint256 collateralAmount, uint256 daiAmount) public {
         _checkAllowance(
             MakerDaiDelegateLib.daiJoinAddress(),
@@ -72,7 +71,7 @@ contract TestStrategy is Strategy {
         );
         return _freeCollateralAndRepayDai(collateralAmount, daiAmount);
     }
-
+/*
     function repayDebt(uint256 _amount) public {
         return _repayDebt(_amount);
     }

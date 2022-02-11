@@ -54,7 +54,7 @@ def test_decrease(wsteth, steth, yvault, vault, strategy, gov, token, token_whal
     assert vault.strategies(strategy).dict()["totalDebt"] < 15 * (
         10 ** token.decimals()
     )
-    assert vault.strategies(strategy).dict()["totalLoss"] == 0
+    assert vault.strategies(strategy).dict()["totalLoss"] < 1e17
 
 
 def test_gradual_decrease(yvault, vault, strategy, gov, token, token_whale):
@@ -112,9 +112,19 @@ def test_gradual_decrease(yvault, vault, strategy, gov, token, token_whale):
     strategy.harvest({"from": gov})
     vault.updateStrategyDebtRatio(strategy, 500, {"from": gov})
     strategy.harvest({"from": gov})
+    vault.updateStrategyDebtRatio(strategy, 400, {"from": gov})
+    strategy.harvest({"from": gov})
+    vault.updateStrategyDebtRatio(strategy, 300, {"from": gov})
+    strategy.harvest({"from": gov})
+    vault.updateStrategyDebtRatio(strategy, 200, {"from": gov})
+    strategy.harvest({"from": gov})
+    vault.updateStrategyDebtRatio(strategy, 100, {"from": gov})
+    strategy.harvest({"from": gov})
+    vault.updateStrategyDebtRatio(strategy, 0, {"from": gov})
+    strategy.harvest({"from": gov})
 
     # 15 because it should be less than 20 but there is some profit.
     assert vault.strategies(strategy).dict()["totalDebt"] < 15 * (
         10 ** token.decimals()
     )
-    assert vault.strategies(strategy).dict()["totalLoss"] == 0
+    assert vault.strategies(strategy).dict()["totalLoss"] < 1e17

@@ -457,11 +457,11 @@ library MakerDaiDelegateLib {
         //anyone can call aave flash loan to us. (for some reason. grrr)
         //awaitingFlash = true;
 
-        lendingPool.flashLoan(address(this), address(_token), payWithFlashloan, data);
+        lendingPool.flashLoan(address(this), address(_token), payWithFlashloan.add(1), data);
 
         //awaitingFlash = false;
 
-        emit Leverage(payWithFlashloan, payWithFlashloan, deficit, AAVE_LENDING);
+        emit Leverage(payWithFlashloan, payWithFlashloan.add(1), deficit, AAVE_LENDING);
     }
 
     //Aave calls this function after doing flash loan
@@ -492,7 +492,7 @@ library MakerDaiDelegateLib {
         emit DebugDelegate(41, _flashloanAmount);
         //Paying back AAVE needs to be +fee
         uint256 aaveDebtAmount = _flashloanAmount.add(_fee);
-        emit DebugDelegate(42, _totalRepayAmount);
+        
         //How much yield bearing to trade to pay back AAVE
         uint256 aaveDebtInYieldBearing = router.getAmountsIn(
             aaveDebtAmount, 
@@ -501,6 +501,7 @@ library MakerDaiDelegateLib {
         
         //DEBT WITHDRAWAL:
         uint256 currentDebt = debtForCdp(cdpIdFlash, ilk_yieldBearing).add(1);
+        emit DebugDelegate(42, currentDebt);
         //_totalRepayAmount not more than current total debt, collateral withdrawal not more than total collateral
         _totalRepayAmount = Math.min(_totalRepayAmount, currentDebt);
         aaveDebtInYieldBearing = Math.min(aaveDebtInYieldBearing, balanceOfCdp(cdpIdFlash, ilk_yieldBearing));
@@ -523,7 +524,9 @@ library MakerDaiDelegateLib {
         emit DebugDelegate(98, aaveDebtInYieldBearing);
         emit DebugDelegate(99, balanceOfCdp(cdpIdFlash, ilk_yieldBearing));
         emit DebugDelegate(100, _totalRepayAmount);
+        emit DebugDelegate(101, IERC20(investmentTokenAdd).balanceOf(address(this)));
         //emit DebugDelegate(101, IERC20(_reserve).balanceOf(address(this)));
+        _totalRepayAmount = Math.min(_totalRepayAmount, IERC20(investmentTokenAdd).balanceOf(address(this)));
         wipeAndFreeGem(gemJoinFlash, cdpIdFlash, aaveDebtInYieldBearing, _totalRepayAmount);        
         //--- MAKER DEBT REPAID & YIELD BEARING UNLOCKED!
 
