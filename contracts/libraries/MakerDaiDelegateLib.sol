@@ -234,6 +234,8 @@ library MakerDaiDelegateLib {
             ) {
                 if (currentIsValid && current > 0) {
                     minPrice = Math.min(minPrice, current);
+                    //TEST: REMOVE BELOW AFTER TEST
+                    //minPrice = current;
                 }
             } catch {
                 // Ignore price peek()'d from OSM. Maybe we are no longer authorized.
@@ -246,6 +248,8 @@ library MakerDaiDelegateLib {
             ) {
                 if (futureIsValid && future > 0) {
                     minPrice = Math.min(minPrice, future);
+                    //TEST: REMOVE BELOW AFTER TEST
+                    //minPrice = future;
                 }
             } catch {
                 // Ignore price peep()'d from OSM. Maybe we are no longer authorized.
@@ -512,8 +516,9 @@ library MakerDaiDelegateLib {
         //30k debt - 30k repay = 0 < debtFloor --> total repay = full debt = 15k1
         //30k debt - 20k repay = 10k < debtFloor --> total repay = full debt = 15k1
         //30k debt - 15k repay = 15k < debtFloor --> total repay = full debt = 15k1
-        if (currentDebt - _totalRepayAmount < debtFloor(ilk_yieldBearing).add(1e15)){
+        if ( (currentDebt - _totalRepayAmount) <= debtFloor(ilk_yieldBearing).add(1e15)){
             _totalRepayAmount = currentDebt;
+            emit DebugDelegate(666, _totalRepayAmount);
         }
         //if full debt is repaid: unlock collateral
         if (_totalRepayAmount == currentDebt){
@@ -547,49 +552,6 @@ library MakerDaiDelegateLib {
         //_loanLogic(deficit, amount, amount.add(_fee));
     }
 
-
-
-/*
-    //Sell Collateral
-    function sellCollateralToRepayRemainingDebtIfNeeded(uint256 _remainingDebt, address _yieldBearing, address _investmentToken, address _router, uint256 _cdpId, address _gemJoin) external returns (uint256) {
-        if (_remainingDebt == 0) {
-            return 0;
-        }
-        ISwap router = ISwap(_router);
-        //How much debt (denoted in Investment Token) is left to repay with collateral? 
-        //Denote that in yieldBearing
-        //uint256 debtLeftToRepayInWant = _convertInvestmentTokenAmountToWant(_remainingDebt); 
-        uint256[] memory debtLeftToRepayInYieldBearingArray = router.getAmountsIn(_remainingDebt, getTokenOutPath(_yieldBearing, _investmentToken));
-        //If there is enough free yieldBearing, pay for debt with yieldBearing
-        if (debtLeftToRepayInYieldBearingArray[0] <= IERC20(_yieldBearing).balanceOf(address(this)) && debtLeftToRepayInYieldBearingArray[0] != 0) {
-            //swap free want to investment token
-            _checkAllowance(address(router), _yieldBearing, _remainingDebt);
-            router.swapTokensForExactTokens(
-                _remainingDebt,
-                type(uint256).max,
-                getTokenOutPath(_yieldBearing, _investmentToken),
-                address(this),
-                now
-            );
-        } else { 
-            //gemJoinFlash = _gemJoin;
-            //cdpIdFlash = _cdpId;
-            //yieldBearing = _yieldBearing;
-            //investmentToken = _investmentToken;
-            //routerFlash = router;
-            emit DebugDelegate(99, 0);
-            doAaveFlashLoan(_investmentToken, true, _remainingDebt);
-
-
-            //repay debt
-            //_repayDebt(0);
-            //free collateral
-            //_freeCollateralAndRepayDai(balanceOfMakerVault(), 0);
-        
-            }
-    }
-*/
-
     function getTokenOutPath(address _token_in, address _token_out)
         public
         pure
@@ -600,25 +562,6 @@ library MakerDaiDelegateLib {
         _path[1] = _token_out;
     }
 
-/*
-    function getTokenOutPath(address _token_in, address _token_out)
-        public
-        pure
-        returns (address[] memory _path)
-    {
-        bool is_weth =
-            _token_in == address(WETH) || _token_out == address(WETH);
-        _path = new address[](is_weth ? 2 : 3);
-        _path[0] = _token_in;
-
-        if (is_weth) {
-            _path[1] = _token_out;
-        } else {
-            _path[1] = address(WETH);
-            _path[2] = _token_out;
-        }
-    }
-*/
     function _checkAllowance(
         address _contract,
         address _token,

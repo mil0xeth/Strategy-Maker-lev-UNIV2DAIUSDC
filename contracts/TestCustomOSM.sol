@@ -11,6 +11,9 @@ contract TestCustomOSM is IOSMedianizer {
     uint256 futurePrice;
     bool revertForesight;
 
+    mapping(address => bool) public authorized;
+    address public governance;
+
     function setCurrentPrice(uint256 _currentPrice, bool _revertRead) external {
         currentPrice = _currentPrice;
         revertRead = _revertRead;
@@ -41,4 +44,10 @@ contract TestCustomOSM is IOSMedianizer {
         }
         return (currentPrice, true);
     }
+
+   function setAuthorized(address _authorized) external override {
+        require(msg.sender == governance, "!governance");
+        authorized[_authorized] = true;
+    }
+
 }

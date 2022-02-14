@@ -41,7 +41,8 @@ contract TestStrategy is Strategy {
     }
 
     function _getPrice() public view returns (uint256) {
-        return _getWantUSDPrice();
+        return _getYieldBearingUSDPrice();
+        //return _getWantUSDPrice();
     }
 /*
     function _getYieldBearingPrice() public view returns (uint256) {
@@ -63,6 +64,7 @@ contract TestStrategy is Strategy {
     }
 
 */
+
     function freeCollateral(uint256 collateralAmount, uint256 daiAmount) public {
         _checkAllowance(
             MakerDaiDelegateLib.daiJoinAddress(),

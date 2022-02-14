@@ -2,7 +2,7 @@ import pytest
 from brownie import chain, reverts, Wei
 
 
-def DISABLED_vault_ratio_calculation_on_YVAULT_almost_fully_DEPLETED_on_partial_withdrawal(
+def test_vault_ratio_calculation_on_YVAULT_almost_fully_DEPLETED_on_partial_withdrawal(
     dai, dai_whale, token_whale, vault, wsteth, steth, test_strategy, token, yvault, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
 ):
     # Initial ratio is 0 because there is no collateral locked
@@ -25,8 +25,8 @@ def DISABLED_vault_ratio_calculation_on_YVAULT_almost_fully_DEPLETED_on_partial_
     yvault.transfer(token_whale, yvault.balanceOf(test_strategy)*0.8, {"from": test_strategy})
     #assert yvault.balanceOf(test_strategy) == shares_before*0.8
 
-    # Withdraw 100% of the assets, with 0.1% maxLoss
-    withdraw_tx = vault.withdraw(amount*0.3, user, 100, {"from": user})
+    # Withdraw 100% of the assets, accept major losses
+    withdraw_tx = vault.withdraw(amount*0.3, user, 10000, {"from": user})
 
     # Strategy should have 0 collateralization ratio to target value on withdraw
     #assert (

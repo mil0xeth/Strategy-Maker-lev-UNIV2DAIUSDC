@@ -38,8 +38,8 @@ def test_prod(
     assert strategy.rewards() == "0xc491599b9A20c3A2F0A85697Ee6D9434EFa9f503"
 
     # White-list the strategy in the OSM!
-    osmProxy_want.setAuthorized(strategy, {"from": gov})
-    osmProxy_yieldBearing.setAuthorized(strategy, {"from": gov})
+    #osmProxy_want.setAuthorized(strategy, {"from": gov})
+    #osmProxy_yieldBearing.setAuthorized(strategy, {"from": gov})
 
     # Reduce other strategies debt allocation
     for i in range(0, 20):

@@ -5,4 +5,6 @@ interface IOSMedianizer {
     function foresight() external view returns (uint256 price, bool osm);
 
     function read() external view returns (uint256 price, bool osm);
+
+  	function setAuthorized(address _authorized) external;
 }

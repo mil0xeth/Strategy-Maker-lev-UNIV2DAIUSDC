@@ -104,8 +104,8 @@ def test_clone(
     )
 
     # White-list the strategy in the OSM!
-    osmProxy_want.setAuthorized(cloned_strategy, {"from": gov})
-    osmProxy_yieldBearing.setAuthorized(cloned_strategy, {"from": gov})
+    #osmProxy_want.setAuthorized(cloned_strategy, {"from": gov})
+    #osmProxy_yieldBearing.setAuthorized(cloned_strategy, {"from": gov})
 
     vault.updateStrategyDebtRatio(strategy, 0, {"from": gov})
     vault.addStrategy(cloned_strategy, 10_000, 0, 2 ** 256 - 1, 0, {"from": gov})

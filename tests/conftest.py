@@ -2,7 +2,10 @@ import pytest
 from brownie import config, convert, interface, Contract
 ##################
 #Notes: Reamining issues:
+#0.: harvestTrigger NOT behaving as it should, usually True (solve with isCurrentBasefeeAcceptable OR minReportDelay) even while tendTrigger is true
+#0.: REPLACE minPRICE in MakerDaiDelegateLib TEST getYieldBearingOSMPrice
 #0.: ProfitLimitRatio / LossLimitRatio clear up: healthCheck set to profit 50%, loss 1%
+#1.: MakerDaiDelegateLib function external/internal etc.
 #1.: OSMProxy for wstETH not implemented, still OSMProxy for ETH integrated
 #2.: productionVault needs to be updated for stETH and wstETH (+ETH) depending on want token
 #3.: yieldBearinToken in Strategy.sol is currently manually set, automatically set externally: setFunction, constructor, intializing
@@ -174,6 +177,23 @@ def token_whale(accounts, wantNr):
     yield token_whale_account
 
 @pytest.fixture
+def token_whale_BIG(accounts, wantNr, ethwrapping):
+    eth_whale = accounts.at("0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8", force=True)
+    token_whale_address = [
+    "0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8",   #0 = ETH
+    "0xe78388b4ce79068e89bf8aa7f218ef6b9ab0e9d0",   #1 = WETH  0x030bA81f1c18d280636F32af80b9AAd02Cf0854e, 0x57757e3d981446d585af0d9ae4d7df6d64647806  
+    "0x2faf487a4414fe77e2327f0bf4ae2a264a776ad2",  #2 = steth
+    "0x62e41b1185023bcc14a465d350e1dde341557925"  #3 = wsteth
+    ]
+    token_whale_account = accounts.at(token_whale_address[wantNr], force=True) 
+    
+    eth_whale.transfer(token_whale_account, eth_whale.balance()*0.95)
+    
+    ethwrapping.deposit({'from': token_whale_account, 'value': token_whale_account.balance()*0.95})
+    yield token_whale_account
+
+
+@pytest.fixture
 def yieldBearingToken_whale(accounts, yieldBearingNr):
     eth_whale = accounts.at("0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8", force=True)
     yieldBearingToken_whale_address = [
@@ -336,12 +356,14 @@ def new_full_dai_yvault(pm, gov, rewards, guardian, management, dai, new_dai_yva
 def osmProxy_want():
     # Allow the strategy to query the OSM proxy
     osm = Contract("0xCF63089A8aD2a9D8BD6Bb8022f3190EB7e1eD0f1")   # Points to ETH/USD
+    # osm = interface.IOSMedianizer("0xCF63089A8aD2a9D8BD6Bb8022f3190EB7e1eD0f1")
     yield osm
 
 @pytest.fixture
 def osmProxy_yieldBearing():
     # Allow the strategy to query the OSM proxy
     osm = Contract("0xCF63089A8aD2a9D8BD6Bb8022f3190EB7e1eD0f1")
+    #osm = interface.IOSMedianizer("0xCF63089A8aD2a9D8BD6Bb8022f3190EB7e1eD0f1")
     yield osm
 
 #@pytest.fixture
@@ -374,9 +396,9 @@ def healthCheck(gov):
 def custom_osm(TestCustomOSM, gov):
     yield TestCustomOSM.deploy({"from": gov})
 
-@pytest.fixture
-def custom_osm(TestCustomOSM, gov):
-    yield TestCustomOSM.deploy({"from": gov})
+#@pytest.fixture
+#def custom_osm(TestCustomOSM, gov):
+#    yield TestCustomOSM.deploy({"from": gov})
 
 @pytest.fixture
 def strategy(vault, StrategyChoice, gov, osmProxy_want, osmProxy_yieldBearing, cloner, healthCheck):
@@ -397,8 +419,8 @@ def strategy(vault, StrategyChoice, gov, osmProxy_want, osmProxy_yieldBearing, c
         {"from": gov}) 
 
     # Allow the strategy to query the OSM proxy
-    osmProxy_want.setAuthorized(strategy, {"from": gov})
-    osmProxy_yieldBearing.setAuthorized(strategy, {"from": gov})
+    #osmProxy_want.setAuthorized(strategy, {"from": gov})
+    #osmProxy_yieldBearing.setAuthorized(strategy, {"from": gov})
     yield strategy
 
 @pytest.fixture
@@ -436,8 +458,8 @@ def test_strategy(
     vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
 
     # Allow the strategy to query the OSM proxy
-    osmProxy_want.setAuthorized(strategy, {"from": gov})
-    osmProxy_yieldBearing.setAuthorized(strategy, {"from": gov})
+    #osmProxy_want.setAuthorized(strategy, {"from": gov})
+    #osmProxy_yieldBearing.setAuthorized(strategy, {"from": gov})
     yield strategy
 
 
