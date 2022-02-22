@@ -2,9 +2,13 @@ import pytest
 from brownie import config, convert, interface, Contract
 ##################
 #Notes: Reamining issues:
+#0.: withdraw doesn't adjust coll ratio
+#0.: _swap functions in MakerDaiDelegateLib access 
 #0.: harvestTrigger NOT behaving as it should, usually True (solve with isCurrentBasefeeAcceptable OR minReportDelay) even while tendTrigger is true
 #0.: REPLACE minPRICE in MakerDaiDelegateLib TEST getYieldBearingOSMPrice
 #0.: ProfitLimitRatio / LossLimitRatio clear up: healthCheck set to profit 50%, loss 1%
+#0.: test_debt_ratio has a healthcheck issue, even though the loss is not greater than 0.6%, requires losslimitratio of sometimes 70%, sometimes 90%. odd.
+#Maybe because remaining loss is of the size of the entire position? Percentages then apply to the size of the positiion. How to fix?
 #1.: MakerDaiDelegateLib function external/internal etc.
 #1.: OSMProxy for wstETH not implemented, still OSMProxy for ETH integrated
 #2.: productionVault needs to be updated for stETH and wstETH (+ETH) depending on want token
@@ -186,9 +190,7 @@ def token_whale_BIG(accounts, wantNr, ethwrapping):
     "0x62e41b1185023bcc14a465d350e1dde341557925"  #3 = wsteth
     ]
     token_whale_account = accounts.at(token_whale_address[wantNr], force=True) 
-    
     eth_whale.transfer(token_whale_account, eth_whale.balance()*0.95)
-    
     ethwrapping.deposit({'from': token_whale_account, 'value': token_whale_account.balance()*0.95})
     yield token_whale_account
 
@@ -270,9 +272,19 @@ def keeper(accounts):
 
 
 @pytest.fixture
-def router():
+def router(unirouter, sushirouter):
+    yield unirouter
+
+@pytest.fixture
+def sushirouter():
     sushiswap_router = interface.ISwap("0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F")
     yield sushiswap_router
+
+@pytest.fixture
+def unirouter():
+    uniswap_router = interface.ISwap("0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D")
+    yield uniswap_router
+
 
 @pytest.fixture
 def amount(accounts, token, user, token_whale):
@@ -297,7 +309,8 @@ def amount2(accounts, token, user2, token_whale):
 
 @pytest.fixture
 def amountBIGTIME(accounts, token, user, token_whale):
-    amount = 20000 * 10 ** token.decimals()
+    #amount = 20000 * 10 ** token.decimals()
+    amount = 1000 * 10 ** token.decimals()
     # In order to get some funds for the token you are about to use,
     # it impersonate an exchange address to use it's funds.
     #reserve = accounts.at("0xF977814e90dA44bFA03b6295A0616a897441aceC", force=True)
@@ -307,7 +320,8 @@ def amountBIGTIME(accounts, token, user, token_whale):
 
 @pytest.fixture
 def amountBIGTIME2(accounts, token, user2, token_whale):
-    amount = 6000 * 10 ** token.decimals()
+    #amount = 6000 * 10 ** token.decimals()
+    amount = 600 * 10 ** token.decimals()
     # In order to get some funds for the token you are about to use,
     # it impersonate an exchange address to use it's funds.
     #reserve = accounts.at("0xF977814e90dA44bFA03b6295A0616a897441aceC", force=True)

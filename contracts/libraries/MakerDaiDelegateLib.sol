@@ -6,7 +6,12 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 
 import "../../interfaces/maker/IMaker.sol";
-//import "../../interfaces/UniswapInterfaces/IWETH.sol";
+import "../../interfaces/UniswapInterfaces/IWETH.sol";
+import "../../interfaces/lido/ISteth.sol";
+import "../../interfaces/lido/IWstETH.sol";
+import "../../interfaces/curve/Curve.sol";
+import "../../interfaces/swap/ISwap.sol";
+
 import {
     SafeERC20,
     SafeMath,
@@ -17,7 +22,6 @@ import {
 //AAVE Flashloan
 import "../../interfaces/Aave/ILendingPoolAddressesProvider.sol";
 import "../../interfaces/Aave/ILendingPool.sol";
-import "../../interfaces/swap/ISwap.sol";
 
 //OSM
 import "../../interfaces/yearn/IOSMedianizer.sol";
@@ -29,15 +33,26 @@ library MakerDaiDelegateLib {
 
     event DebugDelegate(uint256 _number, uint _value);
 
+    //Strategy specific addresses:
+    IWstETH internal constant yieldBearing =  IWstETH(0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0);
+    ISteth internal constant stETH =  ISteth(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84);
+    IWETH internal constant want = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    IERC20 internal constant investmentToken = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
+    ICurveFi internal constant StableSwapSTETH = ICurveFi(0xDC24316b9AE028F1497c275EB9192a3Ea0f67022);
+
+
+    //AAVE Flashloan protection
+    //bool internal awaitingFlash = false;
+
+    //uint256 public maxSingleTrade;
+
+
     //AAVE Flashloan
     address private constant AAVE_LENDING = 0x24a42fD28C976A61Df5D00D0599C34c4f90748c8;
     ILendingPoolAddressesProvider public constant addressesProvider = ILendingPoolAddressesProvider(AAVE_LENDING);
     // @notice emitted when trying to do Flash Loan. flashLoan address is 0x00 when no flash loan used
     event Leverage(uint256 amountRequested, uint256 amountGiven, bool deficit, address flashLoan);
     
-    address internal constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-    //eth wrapping & unwrapping interface
-    //IWETH public constant ethwrapping = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
     // Units used in Maker contracts
     uint256 internal constant WAD = 10**18;
@@ -430,6 +445,7 @@ library MakerDaiDelegateLib {
         //scenario: minimumDebt = 15001, only 14999 in investment Token --> paWithFlashloan = small --> alright!
         //scenario: minimumDebt to pay off = 40 000, debt = 40000 full 40000 in investment Token --> pay all off
         //scenario: minimumDebt to pay off = 40 000, debt = 100 000, 10 investment otkne --> pay = 10000
+        emit DebugDelegate(1234, _totalRepayAmount);
         uint256 currentDebt = debtForCdp(cdpIdFlash, ilk_yieldBearing).add(1);
         uint256 payWithFlashloan = _totalRepayAmount - Math.min(IERC20(_token).balanceOf(address(this)), _totalRepayAmount);
         //If entire debt can be paid off with investment tokens
@@ -452,15 +468,16 @@ library MakerDaiDelegateLib {
 
         ILendingPool lendingPool = ILendingPool(addressesProvider.getLendingPool());
 
-        //uint256 availableLiquidity = IERC20(_token).balanceOf(address(0x3dfd23A6c5E8BbcFc9581d2E864a68feb6a076d3));
-        //amount = Math.min(availableLiquidity, payWithFlashloan);
+        uint256 availableLiquidity = IERC20(_token).balanceOf(address(0x3dfd23A6c5E8BbcFc9581d2E864a68feb6a076d3)).sub(1);
+        emit DebugDelegate(11111, availableLiquidity);
+        payWithFlashloan = Math.min(availableLiquidity, payWithFlashloan);
         //amount = payWithFlashloan;
 
         bytes memory data = abi.encode(deficit, payWithFlashloan);
 
         //anyone can call aave flash loan to us. (for some reason. grrr)
         //awaitingFlash = true;
-
+        emit DebugDelegate(22222, payWithFlashloan);
         lendingPool.flashLoan(address(this), address(_token), payWithFlashloan.add(1), data);
 
         //awaitingFlash = false;
@@ -470,14 +487,13 @@ library MakerDaiDelegateLib {
 
     //Aave calls this function after doing flash loan
     function aaveExecuteOperation(
-        address _reserve,
         uint256 _flashloanAmount,
         uint256 _fee,
         //bytes calldata _params,
         address gemJoinFlash,
         uint256 cdpIdFlash,
-        address yieldBearingAdd,
-        address routerAdd,
+        //address yieldBearingAdd,
+        ISwap router,
         bytes32 ilk_yieldBearing,
         uint256 _totalRepayAmount
         //bool retainDebtFloor
@@ -487,9 +503,10 @@ library MakerDaiDelegateLib {
         }
         //(bool deficit, uint256 amount) = abi.decode(_params, (bool, uint256));
         //require(msg.sender == addressesProvider.getLendingPool(), "NOT_AAVE");
-        //require(awaitingFlash, "Malicious");
-        ISwap router = ISwap(routerAdd); 
-        address investmentTokenAdd = _reserve;
+        //require(awaitingFlash, "Malicious"); 
+        address investmentTokenAdd = address(investmentToken);
+        address wantAdd = address(want);
+        address yieldBearingAdd = address(yieldBearing);
 
         //calculate how much is _totalRepayAmount
         emit DebugDelegate(40, _totalRepayAmount);
@@ -498,10 +515,46 @@ library MakerDaiDelegateLib {
         uint256 aaveDebtAmount = _flashloanAmount.add(_fee);
         
         //How much yield bearing to trade to pay back AAVE
+        /*
         uint256 aaveDebtInYieldBearing = router.getAmountsIn(
             aaveDebtAmount, 
             getTokenOutPath(yieldBearingAdd, investmentTokenAdd)
         )[0];
+        */
+
+        //How much yieldBearing it takes to buy enough investmentToken through curve 
+        uint256 curveroute =             
+            yieldBearing.getWstETHByStETH(
+                StableSwapSTETH.get_dy(0, 1, 
+                router.getAmountsIn(aaveDebtAmount, 
+                    getTokenOutPath(wantAdd, investmentTokenAdd))[0]
+                ));
+
+        //Account for slippage through the curve route
+        //uint256 slippageProtection = address(this).slippageProtection;
+        uint256 slippageProtection = 100;
+        curveroute = curveroute.mul(10000 + slippageProtection).div(10000);
+        //How much yieldBearing it takes to buy enough investmentToken through router
+        uint256 routerroute;
+        
+        try router.getAmountsIn(aaveDebtAmount, getTokenOutPath(yieldBearingAdd, investmentTokenAdd)) returns (uint256[] memory result) {
+            routerroute = result[0];
+        } catch {
+            routerroute = curveroute + 1e18;
+        }
+        /*
+        uint256 routerroute = 
+            router.getAmountsIn(
+                aaveDebtAmount, 
+                getTokenOutPath(yieldBearingAdd, investmentTokenAdd)
+            )[0];
+        */
+        emit DebugDelegate(95, curveroute);
+        emit DebugDelegate(96, routerroute);
+        uint256 aaveDebtInYieldBearing = Math.min(curveroute, routerroute);
+        //uint256 aaveDebtInYieldBearing = curveroute;
+        //uint256 aaveDebtInYieldBearing = routerroute;
+        emit DebugDelegate(97, aaveDebtInYieldBearing);
         
         //DEBT WITHDRAWAL:
         uint256 currentDebt = debtForCdp(cdpIdFlash, ilk_yieldBearing).add(1);
@@ -536,8 +589,24 @@ library MakerDaiDelegateLib {
         //--- MAKER DEBT REPAID & YIELD BEARING UNLOCKED!
 
         //--- REPAY AAVE
-        _checkAllowance(routerAdd, yieldBearingAdd, aaveDebtAmount);
-        //Swap yield bearing for investment token
+        //Swap yield bearing OR want for investment token
+        //Curve or router route?
+        if (curveroute < routerroute){
+        //if (1 == 1){
+            //swap yieldBearingAmount 
+            emit DebugDelegate(199, aaveDebtAmount);
+            emit DebugDelegate(200, aaveDebtInYieldBearing);
+            emit DebugDelegate(201, curveroute);
+            emit DebugDelegate(202, balanceOfYieldBearing());
+            emit DebugDelegate(203, want.balanceOf(address(this)));
+            _swapYieldBearingToWant(curveroute, 50); //100 = 1%
+            emit DebugDelegate(204, balanceOfYieldBearing());
+            emit DebugDelegate(205, want.balanceOf(address(this)));
+            //Let router swap want instead of yieldBearing to investmentToken
+            yieldBearingAdd = wantAdd;
+        }
+        _checkAllowance(address(router), yieldBearingAdd, aaveDebtAmount);
+        //Swap either yieldBearing (or want) to investmentToken to repay flashloan debt outstanding to AAVE
         router.swapTokensForExactTokens(
             aaveDebtAmount,
             type(uint256).max,
@@ -545,6 +614,8 @@ library MakerDaiDelegateLib {
             address(this),
             now
         );
+        emit DebugDelegate(206, investmentToken.balanceOf(address(this)));
+        emit DebugDelegate(207, want.balanceOf(address(this)));
         //Pay back AAVE+fee:
         address core = addressesProvider.getLendingPoolCore();
         _checkAllowance(core, investmentTokenAdd, aaveDebtAmount);
@@ -572,5 +643,75 @@ library MakerDaiDelegateLib {
             IERC20(_token).safeApprove(_contract, type(uint256).max);
         }
     }
+
+    function _swapInvestmentTokenToWant(uint256 _amount, ISwap _router) external returns (uint256) {
+        if (_amount < 1000) {
+            return 0;
+        }
+        _checkAllowance(address(_router), address(investmentToken), _amount);
+        return _router.swapExactTokensForTokens(
+            _amount,
+            0,
+            getTokenOutPath(address(investmentToken), address(want)),
+            address(this),
+            now
+        )[1];
+        //the [1] value of the array is the out value of the out token (want) of the swap
+    }
+
+    function _swapWantToYieldBearing(uint256 _amount, address _referal) external returns (uint256) {
+        if (_amount == 0) {
+            return 0;
+        }
+        //---WETH (ethwrapping withdraw) --> ETH --- Unwrap WETH to ETH (to be used in Curve)
+        want.withdraw(_amount);  
+        _amount = address(this).balance;              
+        //---ETH (steth.submit OR stableswap01) --> STETH --- test if mint or buy
+        if (StableSwapSTETH.get_dy(0, 1, _amount) < _amount){
+            //LIDO stETH MINT: 
+            stETH.submit{value: _amount}(_referal);
+        }else{ 
+            //approve Curve ETH/stETH StableSwap & exchange eth to steth
+            _checkAllowance(address(StableSwapSTETH), address(stETH), _amount);       
+            StableSwapSTETH.exchange{value: _amount}(0, 1, _amount, _amount);
+        }
+        //---STETH (wsteth wrap) --> WSTETH
+        _checkAllowance(address(yieldBearing), address(stETH), balanceOfstETH());
+        yieldBearing.wrap(balanceOfstETH());
+        //---> all WETH now to WSTETH
+        return balanceOfYieldBearing();
+    }
+
+    function _swapYieldBearingToWant(uint256 _amount, uint256 _slippageProtection) public {
+        if (_amount == 0) {
+            return;
+        }
+        //--WSTETH --> STETH
+        //emit Debug(6969, balanceOfYieldBearing());
+        _amount = Math.min(_amount, balanceOfYieldBearing());
+        _amount = yieldBearing.unwrap(_amount);
+        //emit Debug(69, _amount);
+        //emit Debug(111, StableSwapSTETH.get_dy(1, 0, _amount));  
+        //---STEHT --> ETH
+        _checkAllowance(address(StableSwapSTETH), address(stETH), _amount);
+        StableSwapSTETH.exchange(1, 0, _amount, _amount.mul(10000 - _slippageProtection).div(10000));
+        //Re-Wrap it back up: ETH to WETH
+        want.deposit{value: address(this).balance}();
+    }
+/*
+    function balanceOfWant() public view returns (uint256) {
+        return want.balanceOf(address(this));
+    }
+*/
+    function balanceOfYieldBearing() public view returns (uint256) {
+        return yieldBearing.balanceOf(address(this));
+    }
+
+    function balanceOfstETH() public view returns (uint256) {
+        return stETH.balanceOf(address(this));
+    }
+
+
+
 
 }
