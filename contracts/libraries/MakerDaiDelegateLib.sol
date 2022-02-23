@@ -533,12 +533,12 @@ library MakerDaiDelegateLib {
         //Account for slippage through the curve route
         //uint256 slippageProtection = address(this).slippageProtection;
         uint256 slippageProtection = 100;
-        curveroute = curveroute.mul(10000 + slippageProtection).div(10000);
+        curveroute = curveroute.mul(10000 + slippageProtection).div(10000).add(1);
         //How much yieldBearing it takes to buy enough investmentToken through router
         uint256 routerroute;
         
         try router.getAmountsIn(aaveDebtAmount, getTokenOutPath(yieldBearingAdd, investmentTokenAdd)) returns (uint256[] memory result) {
-            routerroute = result[0];
+            routerroute = result[0].add(1);
         } catch {
             routerroute = curveroute + 1e18;
         }

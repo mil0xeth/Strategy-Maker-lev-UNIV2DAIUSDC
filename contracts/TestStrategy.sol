@@ -44,6 +44,11 @@ contract TestStrategy is Strategy {
         return _getYieldBearingUSDPrice();
         //return _getWantUSDPrice();
     }
+
+    function _getWantPrice() public view returns (uint256) {
+        return _getWantUSDPrice();
+    }
+
 /*
     function _getYieldBearingPrice() public view returns (uint256) {
         return _getYieldBearingUSDPrice();

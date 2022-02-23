@@ -4,7 +4,7 @@ from brownie import chain, reverts
 def test_high_profit_causes_healthcheck_revert(
     vault, strategy, token, token_whale, gov, healthCheck
 ):
-    profitLimit = healthCheck.profitLimitRatio()
+    profitLimit = healthCheck.profitLimitRatio(100, {'from': gov})
     maxBPS = 10_000
 
     # Send some funds to the strategy

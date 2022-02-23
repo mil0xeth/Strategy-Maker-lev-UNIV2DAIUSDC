@@ -1022,12 +1022,6 @@ contract Strategy is BaseStrategy {
 
     // ----------------- INTERNAL CALCS -----------------
 
-    //subOrZero
-    function subOrZero(uint256 a, uint256 b) internal pure returns (uint256) {
-        if (b > a) return 0;
-        return b - a;
-    }
-
     // Returns the minimum price of Want available in DAI
     function _getWantUSDPrice() internal view returns (uint256) {
         // Use price from spotter as base

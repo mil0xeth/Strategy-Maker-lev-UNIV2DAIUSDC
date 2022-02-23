@@ -3,6 +3,7 @@ from brownie import config, convert, interface, Contract
 ##################
 #Notes: Reamining issues:
 #0.: withdraw doesn't adjust coll ratio
+#0.: why is uniswap still a problem? has correct 
 #0.: _swap functions in MakerDaiDelegateLib access 
 #0.: harvestTrigger NOT behaving as it should, usually True (solve with isCurrentBasefeeAcceptable OR minReportDelay) even while tendTrigger is true
 #0.: REPLACE minPRICE in MakerDaiDelegateLib TEST getYieldBearingOSMPrice
