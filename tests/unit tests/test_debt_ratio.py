@@ -180,7 +180,7 @@ def test_gradual_decrease(yvault, vault, strategy, gov, token, token_whale, heal
 
 
 
-def test_gradual_decrease_with_profitable_vault(yvault, vault, strategy, gov, token, token_whale, healthCheck):
+def DISABLED_gradual_decrease_with_profitable_vault(yvault, vault, strategy, gov, token, token_whale, healthCheck):
     healthCheck.setProfitLimitRatio(9999, {"from": gov})  #default 100, # 1%
     healthCheck.setlossLimitRatio(9999, {"from": gov})  #default 100, # 1%
     token.approve(vault, 2 ** 256 - 1, {"from": token_whale})
@@ -310,7 +310,7 @@ def test_gradual_decrease_with_profitable_vault(yvault, vault, strategy, gov, to
 
 
 
-def test_gradual_decrease_with_profitable_vault_wsteth(yvault, vault, strategy, gov, token, token_whale, wsteth, steth, StableSwapSTETH, healthCheck):
+def DISABLED_gradual_decrease_with_profitable_vault_wsteth(yvault, vault, strategy, gov, token, token_whale, wsteth, steth, StableSwapSTETH, healthCheck):
     healthCheck.setProfitLimitRatio(9999, {"from": gov})  #default 100, # 1%
     healthCheck.setlossLimitRatio(9999, {"from": gov})  #default 100, # 1%
     token.approve(vault, 2 ** 256 - 1, {"from": token_whale})
