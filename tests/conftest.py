@@ -3,28 +3,22 @@ from brownie import config, convert, interface, Contract
 ##################
 #Notes: Reamining issues:
 #0.: withdraw doesn't adjust coll ratio
-#0.: why is uniswap still a problem? has correct 
+#0.: why is uniswap still a problem? has correct settings
+#1.: update form 0.6.12 solidity version to include uniswapv3?
 #0.: _swap functions in MakerDaiDelegateLib access 
 #0.: harvestTrigger NOT behaving as it should, usually True (solve with isCurrentBasefeeAcceptable OR minReportDelay) even while tendTrigger is true
-#0.: REPLACE minPRICE in MakerDaiDelegateLib TEST getYieldBearingOSMPrice
 #0.: ProfitLimitRatio / LossLimitRatio clear up: healthCheck set to profit 50%, loss 1%
 #0.: test_debt_ratio has a healthcheck issue, even though the loss is not greater than 0.6%, requires losslimitratio of sometimes 70%, sometimes 90%. odd.
 #Maybe because remaining loss is of the size of the entire position? Percentages then apply to the size of the positiion. How to fix?
-#1.: MakerDaiDelegateLib function external/internal etc.
+#1.: MakerDaiDelegateLib functions decisions: external/internal etc.
 #1.: OSMProxy for wstETH not implemented, still OSMProxy for ETH integrated
-#2.: productionVault needs to be updated for stETH and wstETH (+ETH) depending on want token
-#3.: yieldBearinToken in Strategy.sol is currently manually set, automatically set externally: setFunction, constructor, intializing
 #4.: Remove SIZE OPTIMISATION
 #5.: Referal: Functions, YieldBearing setFunction? Constructor, why initializeThis?
-#6.: Why is _checkAllowance setting first allowance to zero, then to max? Why not immediately to max?
-#7.: compiler runs set back to 200
+#6.: Why is the original _checkAllowance setting first allowance to zero, then to max? Why not immediately to max?
 #8.: WANT token other than ETH or WETH need to enable chainlinkWantToETHPriceFeed
 #9.: Disabled use of OSM Proxy for Want / Disabled use of OSM Proxy for yieldBearing (doesn't exist) 
 #11.: maxSingleTrade implementation
 #12.: Awaiting Flash in MakerDaiDelegateLib doAaveFlashloan ENABLE
-#13.: DISABLED tests, some of them due to prepareReturn
-#14.: test_operation.py-->test_emergency_exit doesn't work even though correct profit & loss is given and then very small remaining DAI is reinvsted --> !healthcheck (prepareReturn?)
-#15.: setLeaveDebtBehind <----> debtFloor ignore? Important?
 #16.: awaitingFlash with AAVE Flashloan variable include
 #################
 #Decide on Strategy Contract
@@ -457,9 +451,9 @@ def test_strategy(
         vault,
         yvault,
         "Strategy-Maker-lev-wstETH",
-        ilk_want,
-        ilk_yieldBearing,
-        gemJoinAdapter,
+        #ilk_want,
+        #ilk_yieldBearing,
+        #gemJoinAdapter,
       #  osmProxy_want,
       #  osmProxy_yieldBearing,
       #  price_oracle_want_to_eth
@@ -553,9 +547,9 @@ def cloner(
         vault,
         yvault,
         "Strategy-Maker-lev-wstETH",
-        ilk_want,
-        ilk_yieldBearing,
-        gemJoinAdapter,
+        #ilk_want,
+        #ilk_yieldBearing,
+        #gemJoinAdapter,
      #   osmProxy_want,
      #   osmProxy_yieldBearing,
      #   price_oracle_want_to_eth,

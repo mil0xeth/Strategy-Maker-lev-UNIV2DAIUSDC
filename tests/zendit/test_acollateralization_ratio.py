@@ -166,7 +166,7 @@ def test_vault_ratio_calculation_on_BIGTIME_total_withdraw(
     #)
     assert yvault.balanceOf(test_strategy) < shares_before
     assert test_strategy.balance() == 0
-    assert token.balanceOf(test_strategy) == 0
+    assert token.balanceOf(test_strategy) < 1e18
     assert steth.balanceOf(test_strategy) < 100
     assert wsteth.balanceOf(test_strategy) == 0
     #assert test_strategy.balanceOfMakerVault() == 0
@@ -207,7 +207,7 @@ def test_vault_ratio_calculation_on_BIGTIME_total_withdraw(
     #)
     assert yvault.balanceOf(test_strategy) < shares_before
     assert test_strategy.balance() == 0
-    assert token.balanceOf(test_strategy) == 0
+    assert token.balanceOf(test_strategy) < 1e18
     assert steth.balanceOf(test_strategy) < 100
     #assert wsteth.balanceOf(test_strategy) == 0
     #assert test_strategy.balanceOfMakerVault() == 0
@@ -237,7 +237,7 @@ def test_vault_ratio_calculation_on_BIGTIME_total_withdraw(
 
     assert yvault.balanceOf(test_strategy) < shares_before
     assert test_strategy.balance() == 0
-    assert token.balanceOf(test_strategy) == 0
+    assert token.balanceOf(test_strategy) < 1e18
     assert steth.balanceOf(test_strategy) < 100
     #assert wsteth.balanceOf(test_strategy) < 2e18
     #assert test_strategy.balanceOfMakerVault() == 0
@@ -264,7 +264,7 @@ def test_vault_ratio_calculation_on_BIGTIME_total_withdraw(
 
     assert yvault.balanceOf(test_strategy) < shares_before
     assert test_strategy.balance() == 0
-    assert token.balanceOf(test_strategy) == 0
+    assert token.balanceOf(test_strategy) < 1e18
     assert steth.balanceOf(test_strategy) < 100
     #assert wsteth.balanceOf(test_strategy) < 2e18
     #assert test_strategy.balanceOfMakerVault() == 0

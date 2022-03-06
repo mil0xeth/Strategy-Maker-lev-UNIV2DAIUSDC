@@ -541,9 +541,9 @@ def test_eth_weth_steth_wsteth_wrapping_trading(accounts, ethwrapping, StableSwa
         vault,
         yvault,
         "Strategy-Maker-lev-wstETH",
-        ilk_want,
-        ilk_yieldBearing,
-        gemJoinAdapter,
+        #ilk_want,
+        #ilk_yieldBearing,
+        #gemJoinAdapter,
     #    osmProxy_want,
     #    osmProxy_yieldBearing,
     #    price_oracle_want_to_eth

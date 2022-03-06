@@ -8,7 +8,10 @@ interface IVault is IERC20 {
 
     function decimals() external view returns (uint256);
 
-    function deposit() external;
+    //function deposit() external;
+    function deposit(uint256) external;
+
+    function depositAll() external;
 
     function pricePerShare() external view returns (uint256);
 

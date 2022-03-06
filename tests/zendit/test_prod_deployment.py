@@ -22,9 +22,9 @@ def test_prod(
         "Strategy",
         #f"Strategy-Maker-lev-{yieldBearingToken.symbol()}",
         #"0x4554482d43000000000000000000000000000000000000000000000000000000",  # ETH-C
-        ilk_want,
-        ilk_yieldBearing,
-        gemJoinAdapter,
+        #ilk_want,
+        #ilk_yieldBearing,
+        #gemJoinAdapter,
         #osmProxy_want,
         #osmProxy_yieldBearing,
         #price_oracle_want_to_eth

@@ -47,7 +47,7 @@ def test_borrow_token_transfer_sends_to_yvault(
 
     chain.sleep(1)
     strategy.harvest({"from": gov})
-    assert borrow_token.balanceOf(strategy) < 1000
+    assert borrow_token.balanceOf(strategy) < 10000
 
 
 def test_borrow_token_transfer_increments_profits(
@@ -59,7 +59,7 @@ def test_borrow_token_transfer_increments_profits(
     chain.sleep(1)
     test_strategy.harvest({"from": gov})
 
-    amount = 10_000 * (10 ** borrow_token.decimals())
+    amount = 50_000 * (10 ** borrow_token.decimals())
     borrow_token.transfer(test_strategy, amount, {"from": borrow_whale})
 
     chain.sleep(1)
@@ -101,7 +101,7 @@ def test_direct_transfer_with_actual_profits_1keth(
 
     chain.sleep(1)
     harvest_tx = strategy.harvest({"from": gov})
-    assert strategy.estimatedTotalAssets()/1e18 > 995 
+    assert strategy.estimatedTotalAssets()/1e18 > 990 
 
     # send some profit to yvault
     borrow_token.transfer(

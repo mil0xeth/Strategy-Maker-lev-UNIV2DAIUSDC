@@ -212,7 +212,7 @@ def test_change_debt(token_whale, wsteth, steth, yvault, chain, gov, token, vaul
     vault.updateStrategyDebtRatio(strategy.address, 10_000, {"from": gov})
     chain.sleep(1)
     secondharvest = strategy.harvest({"from": gov})
-    assert vault.totalAssets() > 50e18 
+    assert vault.totalAssets() >= 50e18 
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX_LOSSY) == amount
 
     vault.updateStrategyDebtRatio(strategy.address, 5_000, {"from": gov})

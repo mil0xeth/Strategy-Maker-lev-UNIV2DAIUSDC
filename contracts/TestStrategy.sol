@@ -11,10 +11,10 @@ contract TestStrategy is Strategy {
     constructor(
         address _vault,
         address _yVault,
-        string memory _strategyName,
-        bytes32 _ilk_want,
-        bytes32 _ilk_yieldBearing,
-        address _gemJoin
+        string memory _strategyName
+//        bytes32 _ilk_want,
+//        bytes32 _ilk_yieldBearing,
+//        address _gemJoin
 //        address _wantToUSDOSMProxy
 //        address _yieldBearingToUSDOSMProxy
 //        address _chainlinkWantToETHPriceFeed
@@ -23,10 +23,10 @@ contract TestStrategy is Strategy {
         Strategy(
             _vault,
             _yVault,
-            _strategyName,
-            _ilk_want,
-            _ilk_yieldBearing,
-            _gemJoin
+            _strategyName
+//            _ilk_want,
+//            _ilk_yieldBearing,
+//            _gemJoin
 //            _wantToUSDOSMProxy
 //            _yieldBearingToUSDOSMProxy
 //            _chainlinkWantToETHPriceFeed
@@ -44,11 +44,11 @@ contract TestStrategy is Strategy {
         return _getYieldBearingUSDPrice();
         //return _getWantUSDPrice();
     }
-
+/*
     function _getWantPrice() public view returns (uint256) {
         return _getWantUSDPrice();
     }
-
+*/
 /*
     function _getYieldBearingPrice() public view returns (uint256) {
         return _getYieldBearingUSDPrice();

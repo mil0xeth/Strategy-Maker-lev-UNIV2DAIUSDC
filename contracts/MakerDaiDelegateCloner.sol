@@ -14,10 +14,10 @@ contract MakerDaiDelegateCloner {
     constructor(
         address _vault,
         address _yVault,
-        string memory _strategyName,
-        bytes32 _ilk_want,
-        bytes32 _ilk_yieldBearing,
-        address _gemJoin
+        string memory _strategyName
+    //    bytes32 _ilk_want,
+    //    bytes32 _ilk_yieldBearing,
+    //    address _gemJoin
    //     address _wantToUSDOSMProxy
    //     address _yieldBearingToUSDOSMProxy
    //     address _chainlinkWantToETHPriceFeed
@@ -26,10 +26,10 @@ contract MakerDaiDelegateCloner {
             new Strategy(
                 _vault,
                 _yVault,
-                _strategyName,
-                _ilk_want,
-                _ilk_yieldBearing,
-                _gemJoin
+                _strategyName
+   //             _ilk_want,
+   //             _ilk_yieldBearing,
+   //             _gemJoin
     //            _wantToUSDOSMProxy
     //            _yieldBearingToUSDOSMProxy
     //            _chainlinkWantToETHPriceFeed
@@ -55,10 +55,10 @@ contract MakerDaiDelegateCloner {
         address _rewards,
         address _keeper,
         address _yVault,
-        string memory _strategyName,
-        bytes32 _ilk_want,
-        bytes32 _ilk_yieldBearing,
-        address _gemJoin
+        string memory _strategyName
+ //       bytes32 _ilk_want,
+ //       bytes32 _ilk_yieldBearing,
+ //       address _gemJoin
  //       address _wantToUSDOSMProxy
  //       address _yieldBearingToUSDOSMProxy
  //       address _chainlinkWantToETHPriceFeed
@@ -83,10 +83,10 @@ contract MakerDaiDelegateCloner {
         Strategy(newStrategy).initialize(
             _vault,
             _yVault,
-            _strategyName,
-            _ilk_want,
-            _ilk_yieldBearing,
-            _gemJoin
+            _strategyName
+   //         _ilk_want,
+   //         _ilk_yieldBearing,
+   //         _gemJoin
    //         _wantToUSDOSMProxy
    //         _yieldBearingToUSDOSMProxy
    //         _chainlinkWantToETHPriceFeed
