@@ -3,6 +3,8 @@
 - Want token: WETH
 - Thanks to therealmonoloco & poolpitako for maker-dai-delegate, which this strategy builds upon.
 
+![Strategy-Maker-lev-wstETH diagram](https://github.com/[mil0xeth]/[Strategy-Maker-lev]/blob/[main]/strategydiagram.jpg?raw=true)
+
 ## Installation and Setup
 
 1. [Install Brownie](https://eth-brownie.readthedocs.io/en/stable/install.html) & [Ganache-CLI](https://github.com/trufflesuite/ganache-cli), if you haven't already.
