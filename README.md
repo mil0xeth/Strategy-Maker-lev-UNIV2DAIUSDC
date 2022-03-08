@@ -1,6 +1,7 @@
 # Strategy-Maker-lev-wstETH
-- Yearn Strategy to leverage buy wstETH using Maker
-- Want token: WETH
+- The strategy swaps/stakes WETH to wstETH (according to maximum output) to collateralize it on Maker and mints DAI. The DAI is then deposited part in yvDAI and part in swapping/staking more wstETH to collateralize in Maker further.
+- Advantages: Leveraged yield from staking rewards according & leveraged yield of underlying ETH if ETH price increases.
+- The deleveraging for withdrawals or collateralization ratio adjustments is done through DYDX Flashloans (or AAVE if DYDX were to not have enough liquidity). 
 - Thanks to therealmonoloco & poolpitako for maker-dai-delegate, which this strategy builds upon.
 
 ![Strategy-Maker-lev-wstETH diagram](https://github.com/mil0xeth/Strategy-Maker-lev-wstETH/blob/main/strategydiagram.jpeg?raw=true)
