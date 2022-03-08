@@ -3,7 +3,7 @@
 - Want token: WETH
 - Thanks to therealmonoloco & poolpitako for maker-dai-delegate, which this strategy builds upon.
 
-![Strategy-Maker-lev-wstETH diagram](https://github.com/[mil0xeth]/[Strategy-Maker-lev]/blob/[main]/strategydiagram.jpg?raw=true)
+![Strategy-Maker-lev-wstETH diagram](https://github.com/[mil0xeth]/[Strategy-Maker-lev-wstETH]/blob/[main]/strategydiagram.jpg?raw=true)
 
 ## Installation and Setup
 
