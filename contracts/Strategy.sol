@@ -22,6 +22,9 @@ import "../interfaces/UniswapInterfaces/IWETH.sol";
 import "../interfaces/lido/ISteth.sol";
 import "../interfaces/lido/IWstETH.sol";
 import "../interfaces/curve/Curve.sol";
+
+//AMM Interface:
+//import "../interfaces/swap/ISwapRouter.sol";
 import "../interfaces/swap/ISwap.sol";
 
 
@@ -42,14 +45,16 @@ contract Strategy is BaseStrategy {
     address internal gemJoinAdapter = 0x10CD5fbe1b404B7E19Ef964B63939907bdaf42E2;
 
 
+    //DYDX Flashloan
+    address private constant SOLO = 0x1E0447b19BB6EcFdAe1e4AE1694b0C3659614e4e;
+
+
     ISteth internal constant stETH =  ISteth(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84);
     IERC20 internal constant investmentToken = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
     //Referal 
     address private referal = 0x35a83D4C1305451E0448fbCa96cAb29A7cCD0811;
     uint256 private slippageProtection;
 
-    //AAVE Flashloan protection
-    //bool internal awaitingFlash = false;
 
     //----------- MAKER INIT    
     // Units used in Maker contracts
@@ -66,10 +71,14 @@ contract Strategy is BaseStrategy {
     //address internal constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
     // SushiSwap router
-    ISwap internal constant sushiswapRouter = ISwap(0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F);
+    //ISwap internal constant sushiswapRouter = ISwap(0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F);
 
-    // Uniswap router
-    ISwap internal constant uniswapRouter = ISwap(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
+    // UniswapV2 router
+    ISwap internal constant uniswapV2Router = ISwap(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
+
+    // UniswapV3 router
+    //ISwapRouter internal constant uniswapV3Router = ISwapRouter(0xE592427A0AEce92De3Edee1F18E0157C05861564);
+    //ISwapRouter internal constant uniswapV3Router2 = ISwapRouter(0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45);
 
     // Provider to read current block's base fee
     IBaseFee internal constant baseFeeProvider = IBaseFee(0xf8d0Ec04e94296773cE20eFbeeA82e76220cD549);
@@ -77,9 +86,11 @@ contract Strategy is BaseStrategy {
     // Maker Oracle Security Module
     //IOSMedianizer public wantToUSDOSMProxy;
     //IOSMedianizer public yieldBearingToUSDOSMProxy;
-    //SET TO ETH for NOW
-    //address public yieldBearingToUSDOSMProxy = 0xCF63089A8aD2a9D8BD6Bb8022f3190EB7e1eD0f1;
-    address internal yieldBearingToUSDOSMProxy;
+
+    //ETH USDOSMPROXY:
+    address public wantToUSDOSMProxy = 0xCF63089A8aD2a9D8BD6Bb8022f3190EB7e1eD0f1;
+    //WSTETH does not have a OSM Proxy for now:
+    address public yieldBearingToUSDOSMProxy;
 
     // Use Chainlink oracle to obtain latest want/ETH price
     //AggregatorInterface public chainlinkWantToETHPriceFeed;
@@ -88,7 +99,8 @@ contract Strategy is BaseStrategy {
     IVault public yVault;
 
     // Router used for swaps
-    ISwap internal router = sushiswapRouter;
+    //ISwapRouter internal router = uniswapV3Router;
+    ISwap internal router = uniswapV2Router;
 
     // Our vault identifier
     uint256 public cdpId;
@@ -112,7 +124,7 @@ contract Strategy is BaseStrategy {
     // Maximum Single Trade possible
     //uint256 public maxSingleTrade;
 
-    // Repayment below debt floor amount that is partially repaid with free investmentotken and partially flashloan 
+    // Repayment below debt floor amount that is partially repaid with free investmentoken and partially flashloan 
     uint256 internal totalRepayAmount;
 
     // If set to true the strategy will never try to repay debt by selling want
@@ -201,7 +213,6 @@ contract Strategy is BaseStrategy {
         //yieldBearingToUSDOSMProxy = _yieldBearingToUSDOSMProxy;
         //chainlinkWantToETHPriceFeed = AggregatorInterface(_chainlinkWantToETHPriceFeed);
 
-        //reinvestmentLeverageComponent = 0;
         reinvestmentLeverageComponent = 5000;
     
         //100 = 1%, 
@@ -251,11 +262,12 @@ contract Strategy is BaseStrategy {
     }
 */
 
-    function setYieldBearingToUSDOSMProxy(address _newaddress)
+    function setWantAndYieldBearingUSDOSMProxy(address _newaddressWant, address _newaddressYieldBearing)
         external
         onlyEmergencyAuthorized
     {
-        yieldBearingToUSDOSMProxy = _newaddress;
+        wantToUSDOSMProxy = _newaddressWant;
+        yieldBearingToUSDOSMProxy = _newaddressYieldBearing;
     }
 
 
@@ -298,6 +310,14 @@ contract Strategy is BaseStrategy {
         reinvestmentLeverageComponent = _percentage;
     }
 
+    // Maximum acceptable base fee of current block to take on more debt
+    function setMaxAcceptableBaseFee(uint256 _maxAcceptableBaseFee)
+        external
+        onlyEmergencyAuthorized
+    {
+        maxAcceptableBaseFee = _maxAcceptableBaseFee;
+    }
+
  /*   // If set to true the strategy will never sell want to repay debts
     function setRetainDebtFloorBool(bool _retainDebtFloor)
         external
@@ -311,14 +331,6 @@ contract Strategy is BaseStrategy {
     function setMaxLoss(uint256 _maxLoss) external onlyVaultManagers {
         //require(_maxLoss <= MAX_LOSS_BPS); // dev: invalid value for max loss
         maxLoss = _maxLoss;
-    }
-
-    // Maximum acceptable base fee of current block to take on more debt
-    function setMaxAcceptableBaseFee(uint256 _maxAcceptableBaseFee)
-        external
-        onlyEmergencyAuthorized
-    {
-        maxAcceptableBaseFee = _maxAcceptableBaseFee;
     }
 
     // Set slippage protection for Curve
@@ -359,11 +371,11 @@ contract Strategy is BaseStrategy {
     {
         MakerDaiDelegateLib.allowManagingCdp(cdpId, user, allow);
     }
-
+/*
     function switchRouter(address _router) external onlyVaultManagers {
-        router = ISwap(_router);
+        router = ISwapRouter(_router);
     }
-
+*/
     // Allow external debt repayment
     // Attempt to take currentRatio to target c-ratio
     // Passing zero will repay all debt if possible
@@ -397,16 +409,33 @@ contract Strategy is BaseStrategy {
         return _convertInvestmentTokenAmountToWant(_valueOfInvestment());
     }
 
+    //Reliable version: estimate ETH from STETH == ETH assumption: 
     function estimatedTotalAssets() public view override returns (uint256) {  //measured in WANT
-        return
+        return  
                 balanceOfWant() //free WANT balance in wallet
                 //.add(ethToWant(address(this).balance))  //free ETH balance in wallet
-                .add(_convertYieldBearingAmountToWant(balanceOfYieldBearing())) //free yield bearing in case of deposit in vault below makerdao debtfloor; treat steth as eth
-                .add(_convertYieldBearingAmountToWant(balanceOfMakerVault()))   //Collateral on Maker --> yieldBearing --> WANT 
+                .add(yieldBearing.getStETHByWstETH(balanceOfYieldBearing().add(balanceOfMakerVault()))) //free yield bearing in case of deposit in vault below makerdao debtfloor; treat steth as eth
+                //.add(yieldBearing.getStETHByWstETH(balanceOfMakerVault()))   //Collateral on Maker --> yieldBearing --> WANT 
                 .add(_convertInvestmentTokenAmountToWant(balanceOfInvestmentToken()))  // free DAI balance in wallet --> WANT
                 .add(_convertInvestmentTokenAmountToWant(_valueOfInvestment()))  //locked yvDAI shares --> DAI --> WANT
                 .sub(_convertInvestmentTokenAmountToWant(balanceOfDebt()));  //DAI debt of maker --> WANT
     }
+
+
+
+/*
+    //Test version: estimate ETH from WSTETH amount USD value from Maker Oracle:
+    function estimatedTotalAssets() public view override returns (uint256) {  //measured in WANT
+        return
+                balanceOfWant() //free WANT balance in wallet
+                //.add(ethToWant(address(this).balance))  //free ETH balance in wallet
+                .add(balanceOfYieldBearing().mul(_getYieldBearingUSDPrice()).div(_getWantUSDPrice())) //free yield bearing*yieldbearingUSDprice/wantUSDprice
+                .add(balanceOfMakerVault().mul(_getYieldBearingUSDPrice()).div(_getWantUSDPrice())) //maker collateral yield bearing*yieldbearingUSDprice/wantUSDprice 
+                .add(_convertInvestmentTokenAmountToWant(balanceOfInvestmentToken()))  // free DAI balance in wallet --> WANT
+                .add(_convertInvestmentTokenAmountToWant(_valueOfInvestment()))  //locked yvDAI shares --> DAI --> WANT
+                .sub(_convertInvestmentTokenAmountToWant(balanceOfDebt()));  //DAI debt of maker --> WANT
+    }
+*/
 
     function prepareReturn(uint256 _debtOutstanding)
         internal
@@ -442,7 +471,7 @@ contract Strategy is BaseStrategy {
         // Update accumulated stability fees,  Update the debt ceiling using DSS Auto Line
         MakerDaiDelegateLib.keepBasicMakerHygiene(ilk_yieldBearing);
 
-        emit Debug(9999, _debtOutstanding);
+        //emit Debug(9999, _debtOutstanding);
         // If we have enough want to convert and deposit more into the maker vault, we do it
         if (balanceOfWant() > _debtOutstanding) {
             //Determine amount of Want to Deposit
@@ -480,14 +509,17 @@ contract Strategy is BaseStrategy {
         //uint256 collateralBalance = balanceOfMakerVault();
         uint256 wantBalance = balanceOfWant();
         uint256 yieldBearingBalance = balanceOfYieldBearing();
-        // Check if we can handle it without swapping free yieldBearing or freeing collateral yieldBearing
+        //Check if we can handle it without swapping free yieldBearing or freeing collateral yieldBearing
         if (wantBalance >= _wantAmountNeeded) {
             return (_wantAmountNeeded, 0);
         }
-        // Amount of yieldBearing necessary to be swapped to pay off necessary want, minus free want
-        //emit Debug(0, _wantAmountNeeded);
-        uint256 yieldBearingAmountToFree = _convertWantAmountToYieldBearingWithLosses(_wantAmountNeeded.sub(wantBalance));
-
+        //Amount of yieldBearing necessary to be swapped to pay off necessary want, minus free want
+        //old method: use steth to eth 1:1 relationship
+        uint256 yieldBearingAmountToFree = yieldBearing.getWstETHByStETH(_wantAmountNeeded.sub(wantBalance));
+        //new method: compare oracle prices: 
+        //debugTrace error origin:
+        //uint256 yieldBearingAmountToFree = (_wantAmountNeeded.sub(wantBalance)).mul(_getWantUSDPrice()).div(collateralPrice);
+        
         // Is there enough free yield bearing to pay off everything?
         if (yieldBearingBalance >= yieldBearingAmountToFree) {
             MakerDaiDelegateLib._swapYieldBearingToWant(yieldBearingAmountToFree, slippageProtection);
@@ -507,7 +539,7 @@ contract Strategy is BaseStrategy {
         } else {
             yieldBearingAmountToFree = Math.min(yieldBearingAmountToFree.sub(yieldBearingBalance), balanceOfMakerVault());
         }
-        //Total Debt in InvestmentToken
+        //Total Debt to Maker in InvestmentToken
         uint256 totalDebt = balanceOfDebt();
         // If for some reason we do not have debt, make sure the operation does not revert
         if (totalDebt == 0) totalDebt = 1;
@@ -540,6 +572,17 @@ contract Strategy is BaseStrategy {
     
         //update free want after liquidating
         wantBalance = balanceOfWant();
+
+        //Scaling withdrawals in case of an estimatedTotalAssets amount below totalDebt to vault to let earlier withdrawers have the same percentage of loss as later:
+        totalDebt = vault.strategies(address(this)).totalDebt;
+        //scale withdrawal to estimatedTotalAssets of the strategy to give:
+        if (totalDebt != _wantAmountNeeded && estimatedTotalAssets() < totalDebt) {
+            if (wantBalance > _wantAmountNeeded){
+                wantBalance = _wantAmountNeeded;
+            }
+            wantBalance = wantBalance.mul(estimatedTotalAssets()).div(totalDebt);
+        }
+        
         //loss calculation and returning liquidated amount
         if (wantBalance < _wantAmountNeeded) {
             return (wantBalance, _wantAmountNeeded.sub(wantBalance));
@@ -720,33 +763,16 @@ contract Strategy is BaseStrategy {
         Account.Info memory account,
         bytes memory data
     ) public {
-        (bool usedydx, uint256 flashloanAmount, uint256 repayAmount) = abi.decode(data, (bool, uint256, uint256));
-        //require(msg.sender == SOLO, "NOT_SOLO");
-       MakerDaiDelegateLib.executeFlashloan(
-        true,
-        flashloanAmount,
-        2,
-        cdpId,
-        router,
-        repayAmount
-        );
-    }   
-
-    function executeOperation(
-        address _reserve,
-        uint256 _amount,
-        uint256 _fee,
-        bytes calldata _params
-    ) external {
+        (uint256 flashloanAmount, uint256 repayAmount) = abi.decode(data, (uint256, uint256));
+        require(msg.sender == SOLO, "NOT_SOLO");
         MakerDaiDelegateLib.executeFlashloan(
-            false,
-            _amount, 
-            _fee,  
+            flashloanAmount,
+            2,
             cdpId,
             router,
-            totalRepayAmount
-            );
-    }
+            repayAmount
+        );
+    }   
 
     function _investmentTokenAmountToMint(uint256 _amount) internal returns (uint256) {
         uint256 investmentTokenReserve;
@@ -765,10 +791,7 @@ contract Strategy is BaseStrategy {
         // No need to check allowance because the contract == token
         uint256 balancePrior = balanceOfInvestmentToken();
         uint256 sharesToWithdraw =
-            Math.min(
-                _investmentTokenToYShares(_amountIT),
-                balanceOfYVaultInvestment()
-            );
+            Math.min(_investmentTokenToYShares(_amountIT), balanceOfYVaultInvestment());
         if (sharesToWithdraw == 0) {
             return 0;
         }
@@ -779,12 +802,13 @@ contract Strategy is BaseStrategy {
     function _depositInvestmentTokenInYVault() internal {
         uint256 balanceIT = balanceOfInvestmentToken();
         if (balanceIT > 10000) {
-            emit Debug(2121212, balanceIT);
+            //emit Debug(2121212, balanceIT);
             //Calculate amount of investmentTokens to convert to want to deposit afterwards as collateral
             balanceIT = balanceIT.mul(reinvestmentLeverageComponent).div(10000);
+            //emit Debug(2121213, balanceIT);
             uint256 wantAmountOut = MakerDaiDelegateLib._swapInvestmentTokenToWant(balanceIT, router);
             //Convert investmentToken into yieldBearing & lock as collateral
-            emit Debug(2121213, wantAmountOut);
+            //emit Debug(2121214, wantAmountOut);
             _lockCollateralAndMintDai(MakerDaiDelegateLib._swapWantToYieldBearing(wantAmountOut, referal), 0);
             collateralizationRatio = getCurrentMakerVaultRatio();            
 
@@ -792,7 +816,7 @@ contract Strategy is BaseStrategy {
             balanceIT = balanceOfInvestmentToken();
             _checkAllowance(address(yVault), address(investmentToken), balanceIT);
             //yVault.deposit();
-            emit Debug(2121214, balanceIT);
+            //emit Debug(2121214, balanceIT);
             yVault.deposit(balanceIT);
             //Keep a minimum of 1000 wei of investmenttoken for DYDX flashloan
         }
@@ -840,7 +864,7 @@ contract Strategy is BaseStrategy {
         uint256 _amount
     ) internal {
         if (IERC20(_token).allowance(address(this), _contract) < _amount) {
-            //IERC20(_token).safeApprove(_contract, 0);
+            IERC20(_token).safeApprove(_contract, 0);
             IERC20(_token).safeApprove(_contract, type(uint256).max);
         }
     }
@@ -958,51 +982,20 @@ contract Strategy is BaseStrategy {
     // Returns the minimum price of Want available in DAI
     function _getWantUSDPrice() internal view returns (uint256) {
         // Use price from spotter as base
-        uint256 minPrice = MakerDaiDelegateLib.getSpotPrice(ilk_want);
-/*
-        // Peek the OSM to get current price
-        try wantToUSDOSMProxy.read() returns (
-            uint256 current,
-            bool currentIsValid
-        ) {
-            if (currentIsValid && current > 0) {
-                minPrice = Math.min(minPrice, current);
-            }
-        } catch {
-            // Ignore price peek()'d from OSM. Maybe we are no longer authorized.
-        }
-
-        // Peep the OSM to get future price
-        try wantToUSDOSMProxy.foresight() returns (
-            uint256 future,
-            bool futureIsValid
-        ) {
-            if (futureIsValid && future > 0) {
-                minPrice = Math.min(minPrice, future);
-            }
-        } catch {
-            // Ignore price peep()'d from OSM. Maybe we are no longer authorized.
-        }
-*/
+        uint256 minPrice = MakerDaiDelegateLib.getIlkOSMPrice(ilk_want, wantToUSDOSMProxy);
+        //uint256 minPrice = MakerDaiDelegateLib.getSpotPrice(ilk_want);
         // If price is set to 0 then we hope no liquidations are taking place
         // Emergency scenarios can be handled via manual debt repayment or by
         // granting governance access to the CDP
         require(minPrice > 0); // dev: invalid spot price
-
-        // par is crucial to this calculation as it defines the relationship between DAI and
-        // 1 unit of value in the price
         return minPrice.mul(RAY).div(MakerDaiDelegateLib.getDaiPar());
     }
 
     // Returns the minimum price of yieldBearing available in DAI
     function _getYieldBearingUSDPrice() internal view returns (uint256) {
         //No OSM Proxy for WSTETH at the moment, so everything testmode:
-        
-        // Use price from spotter as base
+        uint256 minPrice = MakerDaiDelegateLib.getIlkOSMPrice(ilk_yieldBearing, yieldBearingToUSDOSMProxy);
         //uint256 minPrice = MakerDaiDelegateLib.getSpotPrice(ilk_yieldBearing);
-        uint256 minPrice = MakerDaiDelegateLib.getYieldBearingOSMPrice(ilk_yieldBearing, yieldBearingToUSDOSMProxy);
-        
-        //end comment
         // If price is set to 0 then we hope no liquidations are taking place
         // Emergency scenarios can be handled via manual debt repayment or by
         // granting governance access to the CDP
@@ -1060,6 +1053,8 @@ contract Strategy is BaseStrategy {
     {
         return _amount.mul(WAD).div(_getWantUSDPrice());
     }
+    
+/*
 
     function _convertYieldBearingAmountToWant(uint256 _amount)
         internal
@@ -1079,6 +1074,8 @@ contract Strategy is BaseStrategy {
         return yieldBearing.getStETHByWstETH(_amount);
     }
 
+
+
     function _convertWantAmountToYieldBearingWithLosses(uint256 _amount)
         internal
         view
@@ -1086,8 +1083,10 @@ contract Strategy is BaseStrategy {
     {
         
         //Want to WstETH amount through ETH/WETH 1:1 stETH
-        return yieldBearing.getWstETHByStETH(_amount);
+        //return yieldBearing.getWstETHByStETH(_amount);
         //Alternative: by price oracle
-        //return amount.mul(_getWantUSDPrice()).div(_getYieldBearingUSDPrice());
+        return amount.mul(_getWantUSDPrice()).div(_getYieldBearingUSDPrice());
     }
+    */
+
 }

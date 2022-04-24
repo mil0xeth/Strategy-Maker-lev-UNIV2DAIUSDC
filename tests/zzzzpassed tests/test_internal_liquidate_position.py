@@ -115,7 +115,7 @@ def DISABLED_liquidate_position_without_enough_profit_but_leaving_debt_behind(
     yvault.transfer(token_whale, yvault.balanceOf(test_strategy) * 0.01, {"from": test_strategy})
 
     #NOT CLEAR WHY THIS SHOULD BE TRUE
-    #(_liquidatedAmount, _loss) = test_strategy._liquidatePosition(amount).return_value
+    (_liquidatedAmount, _loss) = test_strategy._liquidatePosition(amount).return_value
     #assert pytest.approx(_liquidatedAmount, rel=RELATIVE_APPROX) == (
     #    amount - min_locked_collateral_for_debt_floor
     #)
@@ -136,7 +136,7 @@ def DISABLED_liquidate_position_without_enough_profit_but_leaving_debt_behind(
 
 
 # In this test the strategy has enough profit to close the whole position
-def test_happy_liquidation(
+def DISABLED_happy_liquidation(
     chain, token, vault, test_strategy, yvDAI, dai, dai_whale, user, amount, gov
 ):
     # Deposit to the vault
@@ -146,6 +146,8 @@ def test_happy_liquidation(
     # Harvest so all the collateral is locked in the CDP
     chain.sleep(1)
     test_strategy.harvest({"from": gov})
+
+    assert 0 == 1
 
     # sleep 7 days
     chain.sleep(24 * 60 * 60 * 7)

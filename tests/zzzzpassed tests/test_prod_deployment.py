@@ -69,7 +69,7 @@ def test_prod(
     chain.mine(1)
     assert vault.strategies(strategy).dict()["totalLoss"] == 0
     # Send some profit to yvDAI
-    dai.transfer(yvault, yvault.totalAssets()*0.4, {"from": dai_whale})
+    dai.transfer(yvault, yvault.totalAssets()*0.8, {"from": dai_whale})
     #dai.transfer(yvault, "1000 ether", {"from": dai_whale})
     #strategy.setLeaveDebtBehind(False, {"from": gov})
     tx = strategy.harvest({"from": gov})

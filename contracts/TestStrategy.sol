@@ -40,20 +40,15 @@ contract TestStrategy is Strategy {
         (_liquidatedAmount, _loss) = liquidatePosition(_amountNeeded);
     }
 
-    function _getPrice() public view returns (uint256) {
-        return _getYieldBearingUSDPrice();
-        //return _getWantUSDPrice();
-    }
-/*
     function _getWantPrice() public view returns (uint256) {
         return _getWantUSDPrice();
     }
-*/
-/*
+
+
     function _getYieldBearingPrice() public view returns (uint256) {
         return _getYieldBearingUSDPrice();
     }
-
+/*
 
     function _getYieldBearingUSDPriceYo() public view returns (uint256) {
         return _getYieldBearingUSDPrice();
@@ -69,7 +64,7 @@ contract TestStrategy is Strategy {
     }
 
 */
-
+/*
     function freeCollateral(uint256 collateralAmount, uint256 daiAmount) public {
         _checkAllowance(
             MakerDaiDelegateLib.daiJoinAddress(),
@@ -78,7 +73,7 @@ contract TestStrategy is Strategy {
         );
         return _freeCollateralAndRepayDai(collateralAmount, daiAmount);
     }
-/*
+
     function repayDebt(uint256 _amount) public {
         return _repayDebt(_amount);
     }

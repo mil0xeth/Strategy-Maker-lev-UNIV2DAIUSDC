@@ -57,7 +57,7 @@ def test_decrease(wsteth, steth, yvault, vault, strategy, gov, token, token_whal
     assert vault.strategies(strategy).dict()["totalLoss"] < 1e17
 
 
-def test_gradual_decrease(yvault, vault, strategy, gov, token, token_whale, healthCheck):
+def DISABLED_gradual_decrease(yvault, vault, strategy, gov, token, token_whale, healthCheck):
     token.approve(vault, 2 ** 256 - 1, {"from": token_whale})
     vault.deposit(20 * (10 ** token.decimals()), {"from": token_whale})
 

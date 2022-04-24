@@ -4,7 +4,7 @@ from brownie import interface, reverts, Wei
 
 
 def test_osm_reverts_should_use_spot(test_strategy, custom_osm, lib, ilk_yieldBearing):
-    test_strategy.setCustomOSM(custom_osm)
+    test_strategy.setWantAndYieldBearingUSDOSMProxy(custom_osm,custom_osm)
     osm = interface.IOSMedianizer(test_strategy.yieldBearingToUSDOSMProxy())
 
     custom_osm.setCurrentPrice(0, True)
@@ -25,7 +25,7 @@ def test_osm_reverts_should_use_spot(test_strategy, custom_osm, lib, ilk_yieldBe
 def test_current_osm_reverts_should_use_min_future_and_spot(
     test_strategy, custom_osm, lib, RELATIVE_APPROX, ilk_yieldBearing
 ):
-    test_strategy.setCustomOSM(custom_osm)
+    test_strategy.setWantAndYieldBearingUSDOSMProxy(custom_osm,custom_osm)
     osm = interface.IOSMedianizer(test_strategy.yieldBearingToUSDOSMProxy())
 
     spot = lib.getSpotPrice(ilk_yieldBearing)
@@ -49,7 +49,7 @@ def test_current_osm_reverts_should_use_min_future_and_spot(
 def test_future_osm_reverts_should_use_min_future_and_spot(
     test_strategy, custom_osm, lib, RELATIVE_APPROX, ilk_yieldBearing
 ):
-    test_strategy.setCustomOSM(custom_osm)
+    test_strategy.setWantAndYieldBearingUSDOSMProxy(custom_osm,custom_osm)
     osm = interface.IOSMedianizer(test_strategy.yieldBearingToUSDOSMProxy())
 
     spot = lib.getSpotPrice(ilk_yieldBearing)
@@ -72,7 +72,7 @@ def test_future_osm_reverts_should_use_min_future_and_spot(
 def test_get_price_should_return_min_price(
     test_strategy, custom_osm, lib, RELATIVE_APPROX, ilk_yieldBearing
 ):
-    test_strategy.setCustomOSM(custom_osm)
+    test_strategy.setWantAndYieldBearingUSDOSMProxy(custom_osm,custom_osm)
     osm = interface.IOSMedianizer(test_strategy.yieldBearingToUSDOSMProxy())
 
     spot = lib.getSpotPrice(ilk_yieldBearing)

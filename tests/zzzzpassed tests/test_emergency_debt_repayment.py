@@ -82,7 +82,7 @@ def test_passing_zero_should_repay_all_debt_then_new_deposit_create_debt_again(
      # Send funds through the strategy
     chain.sleep(1)
     test_strategy.harvest({"from": gov})
-    assert pytest.approx(test_strategy.balanceOfMakerVault()/test_strategy.collateralizationRatio()*test_strategy._getPrice() == test_strategy.balanceOfDebt(), rel=RELATIVE_APPROX_LOSSY)
+    assert pytest.approx(test_strategy.balanceOfMakerVault()/test_strategy.collateralizationRatio()*test_strategy._getYieldBearingPrice() == test_strategy.balanceOfDebt(), rel=RELATIVE_APPROX_LOSSY)
     assert test_strategy.balanceOfDebt() > 0
     assert test_strategy.balanceOfMakerVault() > 0
     assert wsteth.balanceOf(test_strategy)/1e18 < 1 

@@ -40,7 +40,7 @@ def test_set_rebalance_tolerance_acl(
 
 
 
-def test_switch_dex_acl(strategy, gov, strategist, management, guardian, user):
+def DISABLED_switch_dex_acl(strategy, gov, strategist, management, guardian, user):
     uniswap = "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
     sushiswap = "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F"
 
@@ -162,7 +162,7 @@ def test_emergency_debt_repayment_acl(
         strategy.emergencyDebtRepayment(0, {"from": user})
 
 
-def test_set_max_acceptable_base_fee_acl(
+def DISABLED_set_max_acceptable_base_fee_acl(
     strategy, gov, strategist, management, guardian, user
 ):
     strategy.setMaxAcceptableBaseFee(100 * 1e9, {"from": gov})
@@ -181,7 +181,7 @@ def test_set_max_acceptable_base_fee_acl(
         strategy.setMaxAcceptableBaseFee(150 * 1e9, {"from": user})
 
 
-def test_repay_debt_acl(
+def DISABLED_repay_debt_acl(
     vault,
     strategy,
     token,

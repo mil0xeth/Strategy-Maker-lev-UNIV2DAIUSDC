@@ -1,5 +1,5 @@
 def test_tend_trigger_conditions(
-    vault, strategy, token, token_whale, amount, user, gov
+    vault, strategy, token, token_whale, amount, user, gov, chain
 ):
     # Initial ratio is 0 because there is no collateral locked
     assert strategy.tendTrigger(1) == False

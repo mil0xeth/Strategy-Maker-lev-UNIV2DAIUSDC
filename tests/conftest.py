@@ -85,12 +85,12 @@ def ethwrapping(interface):
     yield uniweth
 
 @pytest.fixture
-def stethInterface(interface):
+def steth(interface):
     contract = interface.ISteth("0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84")
     yield contract
 
 @pytest.fixture
-def wstethInterface(interface):
+def wsteth(interface):
     contract = interface.IWstETH("0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0")
     yield contract
 
@@ -138,15 +138,15 @@ def weth():
     token_address = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" #WETH
     yield Contract(token_address)   
 
-@pytest.fixture
-def steth():
-    token_address = "0xae7ab96520de3a18e5e111b5eaab095312d7fe84" #stETH
-    yield Contract(token_address)
+#@pytest.fixture
+#def steth():
+#    token_address = "0xae7ab96520de3a18e5e111b5eaab095312d7fe84" #stETH
+#    yield Contract(token_address)
 
-@pytest.fixture
-def wsteth():
-    token_address = "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0"  # wstETH
-    yield Contract(token_address)
+#@pytest.fixture
+#def wsteth():
+#    token_address = "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0"  # wstETH
+#    yield Contract(token_address)
 
 @pytest.fixture
 def dai():
@@ -164,7 +164,8 @@ def dai():
 
 @pytest.fixture
 def token_whale(accounts, wantNr):
-    eth_whale = accounts.at("0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8", force=True)
+    #eth_whale = accounts.at("0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8", force=True)
+    eth_whale = accounts.at("0xda9dfa130df4de4673b89022ee50ff26f6ea73cf", force=True)
     token_whale_address = [
     "0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8",   #0 = ETH
     "0xe78388b4ce79068e89bf8aa7f218ef6b9ab0e9d0",   #1 = WETH  0x030bA81f1c18d280636F32af80b9AAd02Cf0854e, 0x57757e3d981446d585af0d9ae4d7df6d64647806  

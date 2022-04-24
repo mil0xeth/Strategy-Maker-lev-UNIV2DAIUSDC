@@ -65,7 +65,7 @@ def test_borrow_token_transfer_increments_profits(
     chain.sleep(1)
     test_strategy.harvest({"from": gov})
 
-    token_price = test_strategy._getPrice()
+    token_price = test_strategy._getYieldBearingPrice()
     transferInWant = amount / token_price
 
     chain.sleep(60)  # wait a minute!
@@ -101,7 +101,7 @@ def test_direct_transfer_with_actual_profits_1keth(
 
     chain.sleep(1)
     harvest_tx = strategy.harvest({"from": gov})
-    assert strategy.estimatedTotalAssets()/1e18 > 990 
+    assert strategy.estimatedTotalAssets()/1e18 > 980 
 
     # send some profit to yvault
     borrow_token.transfer(
@@ -122,7 +122,7 @@ def test_direct_transfer_with_actual_profits_1keth(
 
     strategy.harvest({"from": gov})
     assert (
-        vault.strategies(strategy).dict()["totalGain"] > initialProfit + airdropAmount
+        vault.strategies(strategy).dict()["totalGain"] > initialProfit + airdropAmount*0.9
     )
 
 
@@ -160,5 +160,5 @@ def test_direct_transfer_with_actual_profits_100(
 
     strategy.harvest({"from": gov})
     assert (
-        vault.strategies(strategy).dict()["totalGain"] > initialProfit + airdropAmount
+        vault.strategies(strategy).dict()["totalGain"] > initialProfit + airdropAmount*0.9
     )

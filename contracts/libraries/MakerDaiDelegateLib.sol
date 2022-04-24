@@ -10,6 +10,9 @@ import "../../interfaces/UniswapInterfaces/IWETH.sol";
 import "../../interfaces/lido/ISteth.sol";
 import "../../interfaces/lido/IWstETH.sol";
 import "../../interfaces/curve/Curve.sol";
+
+//AMM Interface:
+//import "../../interfaces/swap/ISwapRouter.sol";
 import "../../interfaces/swap/ISwap.sol";
 
 import {
@@ -24,9 +27,6 @@ import {
 import "../../interfaces/DyDx/ISoloMargin.sol";
 //import "../../interfaces/DyDx/DydxFlashLoanBase.sol";
 //import "../../interfaces/DyDx/ICallee.sol";
-//AAVE Flashloan
-import "../../interfaces/Aave/ILendingPoolAddressesProvider.sol";
-import "../../interfaces/Aave/ILendingPool.sol";
 
 //OSM
 import "../../interfaces/yearn/IOSMedianizer.sol";
@@ -39,28 +39,24 @@ library MakerDaiDelegateLib {
     event DebugDelegate(uint256 _number, uint _value);
 
     //Strategy specific addresses:
+    IWETH internal constant want = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    ISteth internal constant stETH =  ISteth(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84);
     IWstETH internal constant yieldBearing =  IWstETH(0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0);
+    bytes32 internal constant ilk_want = 0x4554482d43000000000000000000000000000000000000000000000000000000;
     bytes32 internal constant ilk_yieldBearing = 0x5753544554482d41000000000000000000000000000000000000000000000000;
     address internal constant gemJoinFlash = 0x10CD5fbe1b404B7E19Ef964B63939907bdaf42E2;
-    ISteth internal constant stETH =  ISteth(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84);
-    IWETH internal constant want = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     IERC20 internal constant investmentToken = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
     ICurveFi internal constant StableSwapSTETH = ICurveFi(0xDC24316b9AE028F1497c275EB9192a3Ea0f67022);
-
-
-    //AAVE Flashloan protection
-    //bool internal awaitingFlash = false;
 
     //uint256 public maxSingleTrade;
 
 
+    //Maker Flashmint:
+    address private constant dssflashmint = 0x1EB4CF3A948E7D72A198fe073cCb8C7a948cD853;
+
     //DYDX Flashloan
     address private constant SOLO = 0x1E0447b19BB6EcFdAe1e4AE1694b0C3659614e4e;
-    //AAVE Flashloan
-    address private constant AAVE_LENDING = 0x24a42fD28C976A61Df5D00D0599C34c4f90748c8;
-    ILendingPoolAddressesProvider public constant AAVEaddressesProvider = ILendingPoolAddressesProvider(AAVE_LENDING);
-    // @notice emitted when trying to do Flash Loan. flashLoan address is 0x00 when no flash loan used
-    event Leverage(uint256 amountRequested, uint256 amountGiven, bool usedydx, address flashLoan);
+
     
 
     // Units used in Maker contracts
@@ -246,34 +242,30 @@ library MakerDaiDelegateLib {
     }
 
 
-    function getYieldBearingOSMPrice(bytes32 _ilk_yieldBearing, address _yieldBearingToUSDOSMProxyAddress) public view returns (uint256) {
-        IOSMedianizer yieldBearingToUSDOSMProxy = IOSMedianizer(_yieldBearingToUSDOSMProxyAddress);
+    function getIlkOSMPrice(bytes32 _ilk, address _OSMProxyAddress) public view returns (uint256) {
+        IOSMedianizer OSMProxy = IOSMedianizer(_OSMProxyAddress);
         // Use price from spotter as base
-        uint256 minPrice = getSpotPrice(_ilk_yieldBearing);
+        uint256 minPrice = getSpotPrice(_ilk);
         // Peek the OSM to get current price
-        if (_yieldBearingToUSDOSMProxyAddress != address(0)) {
-            try yieldBearingToUSDOSMProxy.read() returns (
+        if (_OSMProxyAddress != address(0)) {
+            try OSMProxy.read() returns (
                 uint256 current,
                 bool currentIsValid
             ) {
                 if (currentIsValid && current > 0) {
                     minPrice = Math.min(minPrice, current);
-                    //TEST: REMOVE BELOW AFTER TEST
-                    //minPrice = current;
                 }
             } catch {
                 // Ignore price peek()'d from OSM. Maybe we are no longer authorized.
             }
 
             // Peep the OSM to get future price
-            try yieldBearingToUSDOSMProxy.foresight() returns (
+            try OSMProxy.foresight() returns (
                 uint256 future,
                 bool futureIsValid
             ) {
                 if (futureIsValid && future > 0) {
                     minPrice = Math.min(minPrice, future);
-                    //TEST: REMOVE BELOW AFTER TEST
-                    //minPrice = future;
                 }
             } catch {
                 // Ignore price peep()'d from OSM. Maybe we are no longer authorized.
@@ -445,13 +437,10 @@ library MakerDaiDelegateLib {
     }
 
 
-    //AAVE FLASHLOAN:
+    //FLASHLOAN:
     function initiateFlashLoan(uint256 _totalRepayAmount, uint256 cdpIdFlash) public {
-
         emit DebugDelegate(1234, _totalRepayAmount);
         emit DebugDelegate(11108, balanceOfInvestmentToken());
-        bool usedydx = true;
-        //IERC20 token = IERC20(_token);
         IERC20 token = investmentToken;
         address _token = address(investmentToken);
         uint256 currentDebt = debtForCdp(cdpIdFlash, ilk_yieldBearing).add(1);
@@ -468,29 +457,18 @@ library MakerDaiDelegateLib {
             // if above 0, but below 0.1 DAI, set minimum to 0.1 DAI 
             payWithFlashloan = 1e17;
         }
-        
+        emit DebugDelegate(11110, payWithFlashloan);        
 
         //---------------------------
-        //DYDX or AAVE
+        //DYDX
         //--------------------------
-        ILendingPool AAVElendingPool = ILendingPool(AAVEaddressesProvider.getLendingPool());
-        //uint256 availableAAVELiquidity = token.balanceOf(address(0x3dfd23A6c5E8BbcFc9581d2E864a68feb6a076d3)).sub(1);
-        uint256 availableAAVELiquidity = token.balanceOf(address(AAVElendingPool));
-        emit DebugDelegate(11110, payWithFlashloan);
-        emit DebugDelegate(11111, availableAAVELiquidity);
         uint256 amountInSolo = token.balanceOf(SOLO);
-        emit DebugDelegate(11112, amountInSolo);
-        if ( (amountInSolo >= payWithFlashloan || amountInSolo >= availableAAVELiquidity) && token.balanceOf(address(this)) >= 1000 ) {
+        //emit DebugDelegate(11112, amountInSolo);
         // DYDX
-            usedydx = true;
-            //emit DebugDelegate(11113, payWithFlashloan);
-            ISoloMargin solo = ISoloMargin(SOLO);
-            //emit DebugDelegate(11113, payWithFlashloan);
-            uint256 numMarkets = solo.getNumMarkets();
-            emit DebugDelegate(11113, numMarkets);
-            address curToken;
-            //dyDxMarketID for DAI is 3. Use loop below to find off-chain.
-            uint256 dyDxMarketId = 3;
+        ISoloMargin solo = ISoloMargin(SOLO);
+        uint256 numMarkets = solo.getNumMarkets();
+        //dyDxMarketID for DAI is 3. Use loop below to find off-chain.
+        uint256 dyDxMarketId = 3;
             /*
             for (uint256 i = 0; i < numMarkets; i++) {
                 emit DebugDelegate(11113, i);
@@ -501,58 +479,33 @@ library MakerDaiDelegateLib {
                 }
             }
             */
-            emit DebugDelegate(11113, payWithFlashloan);
-            _checkAllowance(address(SOLO), _token, payWithFlashloan);
-            payWithFlashloan = Math.min(amountInSolo, payWithFlashloan);
-            emit DebugDelegate(11114, payWithFlashloan);
-            //payWithFlashloan = payWithFlashloan.add(2); // we need to overcollateralise on way back
-            bytes memory data = abi.encode(usedydx, payWithFlashloan, payWithFlashloan.add(2));
+        //emit DebugDelegate(11113, payWithFlashloan);
+        _checkAllowance(address(SOLO), _token, payWithFlashloan);
+        payWithFlashloan = Math.min(amountInSolo, payWithFlashloan);
+        //emit DebugDelegate(11114, payWithFlashloan);
+        //payWithFlashloan = payWithFlashloan.add(2); // we need to overcollateralise on way back
+        bytes memory data = abi.encode(payWithFlashloan, payWithFlashloan.add(2));
 
-            // 1. Withdraw $
-            // 2. Call callFunction(...)
-            // 3. Deposit back $
-            Actions.ActionArgs[] memory operations = new Actions.ActionArgs[](3);
+        // 1. Withdraw $
+        // 2. Call callFunction(...)
+        // 3. Deposit back $
+        Actions.ActionArgs[] memory operations = new Actions.ActionArgs[](3);
 
-            operations[0] = _getWithdrawAction(dyDxMarketId, payWithFlashloan);
-            operations[1] = _getCallAction(
-                // Encode custom data for callFunction
-                data
-            );
-            operations[2] = _getDepositAction(dyDxMarketId, payWithFlashloan.add(2));
+        operations[0] = _getWithdrawAction(dyDxMarketId, payWithFlashloan);
+        operations[1] = _getCallAction(data);
+        operations[2] = _getDepositAction(dyDxMarketId, payWithFlashloan.add(2));
 
-            Account.Info[] memory accountInfos = new Account.Info[](1);
-            accountInfos[0] = _getAccountInfo();
+        Account.Info[] memory accountInfos = new Account.Info[](1);
+        accountInfos[0] = _getAccountInfo();
 
-            solo.operate(accountInfos, operations);
-            emit DebugDelegate(11115, payWithFlashloan);
-
-            //emit Leverage(payWithFlashloan, payWithFlashloan, usedydx, SOLO);
-        
-        } else {
-            //AAVE FLASHLOAN:
-            usedydx = false;
-            payWithFlashloan = Math.min(availableAAVELiquidity, payWithFlashloan);
-
-            bytes memory data = abi.encode(usedydx, payWithFlashloan);
-
-            //anyone can call aave flash loan to us. (for some reason. grrr)
-            //awaitingFlash = true;
-            emit DebugDelegate(22222, payWithFlashloan);
-            AAVElendingPool.flashLoan(address(this), _token, payWithFlashloan.add(1), data);
-
-            //awaitingFlash = false;
-
-            //emit Leverage(payWithFlashloan, payWithFlashloan.add(1), usedydx, AAVE_LENDING);
-        }
-
+        solo.operate(accountInfos, operations);
+        emit DebugDelegate(11115, payWithFlashloan);
     }
 
-    //Aave calls this function after doing flash loan
+    //Flashloan Pool calls this function after doing flash loan
     function executeFlashloan(
-        bool usedydx,
         uint256 _flashloanAmount,
         uint256 _fee,
-        //bytes calldata _params,
         uint256 cdpIdFlash,
         ISwap router,
         uint256 _totalRepayAmount
@@ -560,9 +513,6 @@ library MakerDaiDelegateLib {
         if (_flashloanAmount == 0) {
             return;
         }
-        //(bool usedydx, uint256 amount) = abi.decode(_params, (bool, uint256));
-        //require(msg.sender == addressesProvider.getLendingPool(), "NOT_AAVE");
-        //require(awaitingFlash, "Malicious"); 
         address investmentTokenAdd = address(investmentToken);
         address wantAdd = address(want);
         address yieldBearingAdd = address(yieldBearing);
@@ -570,33 +520,33 @@ library MakerDaiDelegateLib {
         //calculate how much is _totalRepayAmount
         emit DebugDelegate(40, _totalRepayAmount);
         emit DebugDelegate(41, _flashloanAmount);
-        //Paying back AAVE needs to be +fee
         uint256 repayAmount = _flashloanAmount.add(_fee);
         //How much yieldBearing it takes to buy enough investmentToken through curve 
+        
         uint256 curveroute =             
             yieldBearing.getWstETHByStETH(
                 StableSwapSTETH.get_dy(0, 1, 
                 router.getAmountsIn(repayAmount, 
                     getTokenOutPath(wantAdd, investmentTokenAdd))[0]
                 ));
-
+        /*
+        uint wantPrice = getSpotPrice(ilk_want).mul(RAY).div(getDaiPar());
+        uint256 curveroute = 
+            yieldBearing.getWstETHByStETH(
+                StableSwapSTETH.get_dy(0, 1, 
+                //repayAmount.div(getSpotPrice(ilk_want)))
+                repayAmount.div(wantPrice))
+                );
+        */
+        emit DebugDelegate(42, curveroute);
         //Account for slippage through the curve route
         //uint256 slippageProtection = address(this).slippageProtection;
         uint256 slippageProtection = 100;
         curveroute = curveroute.mul(10000 + slippageProtection).div(10000).add(1);
-        //How much yieldBearing it takes to buy enough investmentToken through router
-        uint256 routerroute;
-        
-        try router.getAmountsIn(repayAmount, getTokenOutPath(yieldBearingAdd, investmentTokenAdd)) returns (uint256[] memory result) {
-            routerroute = result[0].add(1);
-        } catch {
-            routerroute = curveroute + 1e18;
-        }
-
         emit DebugDelegate(95, curveroute);
-        emit DebugDelegate(96, routerroute);
-        uint256 repayAmountInYieldBearing = Math.min(curveroute, routerroute);
-        //uint256 repayAmountInYieldBearing = curveroute;
+        //emit DebugDelegate(96, routerroute);
+        //uint256 repayAmountInYieldBearing = Math.min(curveroute, routerroute);
+        uint256 repayAmountInYieldBearing = curveroute;
         //uint256 repayAmountInYieldBearing = routerroute;
         emit DebugDelegate(97, repayAmountInYieldBearing);
         
@@ -615,7 +565,7 @@ library MakerDaiDelegateLib {
         //30k debt - 15k repay = 15k < debtFloor --> total repay = full debt = 15k1
         if ( (currentDebt - _totalRepayAmount) <= debtFloor(ilk_yieldBearing).add(1e15)){
             _totalRepayAmount = currentDebt;
-            emit DebugDelegate(666, _totalRepayAmount);
+            emit DebugDelegate(612366, _totalRepayAmount);
         }
         //if full debt is repaid: unlock collateral
         if (_totalRepayAmount == currentDebt){
@@ -633,41 +583,44 @@ library MakerDaiDelegateLib {
         //--- MAKER DEBT REPAID & YIELD BEARING UNLOCKED!
 
         //--- SWAPS FOR FLASHLOAN REPAYMENT
-        //Swap yield bearing OR want for investment token
-        //Curve or router route?
-        if (curveroute < routerroute){
-        //if (1 == 1){
-            //swap yieldBearingAmount 
-            emit DebugDelegate(199, repayAmount);
-            emit DebugDelegate(200, repayAmountInYieldBearing);
-            emit DebugDelegate(201, curveroute);
-            emit DebugDelegate(202, balanceOfYieldBearing());
-            emit DebugDelegate(203, want.balanceOf(address(this)));
-            _swapYieldBearingToWant(curveroute, 50); //100 = 1%
-            emit DebugDelegate(204, balanceOfYieldBearing());
-            emit DebugDelegate(205, want.balanceOf(address(this)));
-            //Let router swap want instead of yieldBearing to investmentToken
-            yieldBearingAdd = wantAdd;
-        }
-        _checkAllowance(address(router), yieldBearingAdd, repayAmount);
-        //Swap either yieldBearing (or want) to investmentToken to repay flashloan debt outstanding to AAVE
+        //swap yieldBearingAmount 
+        emit DebugDelegate(199, repayAmount);
+        emit DebugDelegate(200, repayAmountInYieldBearing);
+        emit DebugDelegate(201, curveroute);
+        //emit DebugDelegate(202, balanceOfYieldBearing());
+        //emit DebugDelegate(203, want.balanceOf(address(this)));
+        _swapYieldBearingToWant(curveroute, 50); //100 = 1%
+        emit DebugDelegate(204, balanceOfYieldBearing());
+        emit DebugDelegate(205, want.balanceOf(address(this)));
+        //Let router swap want instead of yieldBearing to investmentToken
+
+        _checkAllowance(address(router), wantAdd, repayAmount);
         router.swapTokensForExactTokens(
             repayAmount,
             type(uint256).max,
-            getTokenOutPath(yieldBearingAdd, investmentTokenAdd),
+            //getTokenOutPath(yieldBearingAdd, investmentTokenAdd),
+            getTokenOutPath(wantAdd, investmentTokenAdd),
             address(this),
             now
         );
+        /*
+        _checkAllowance(address(router), wantAdd, type(uint256).max);
+        ISwapRouter.ExactOutputSingleParams memory params =
+            ISwapRouter.ExactOutputSingleParams({
+                tokenIn: wantAdd,
+                tokenOut: investmentTokenAdd,
+                fee: 500,
+                recipient: address(this),
+                deadline: block.timestamp,
+                amountOut: repayAmount,
+                amountInMaximum: type(uint256).max,
+                sqrtPriceLimitX96: 0
+            });
+        router.exactOutputSingle(params);
+        */
         emit DebugDelegate(206, balanceOfInvestmentToken());
         emit DebugDelegate(207, want.balanceOf(address(this)));
-        //PAYBACK: DYDX
-
-        if (usedydx == false) {
-            //Pay back AAVE+fee:
-            address core = AAVEaddressesProvider.getLendingPoolCore();
-            _checkAllowance(core, investmentTokenAdd, repayAmount);
-            investmentToken.safeTransfer(core, repayAmount); 
-        }       
+        //PAYBACK: DYDX    
     }
 
     function getTokenOutPath(address _token_in, address _token_out)
@@ -696,6 +649,21 @@ library MakerDaiDelegateLib {
             return 0;
         }
         _checkAllowance(address(_router), address(investmentToken), _amount);
+        emit DebugDelegate(10203,_amount);
+        /*
+        ISwapRouter.ExactInputSingleParams memory params =
+            ISwapRouter.ExactInputSingleParams({
+                tokenIn: address(investmentToken),
+                tokenOut: address(want),
+                fee: 500,
+                recipient: address(this),
+                deadline: block.timestamp,
+                amountIn: _amount,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: 0
+            });
+        return _router.exactInputSingle(params);
+        */
         return _router.swapExactTokensForTokens(
             _amount,
             0,
@@ -703,6 +671,8 @@ library MakerDaiDelegateLib {
             address(this),
             now
         )[1];
+        
+
         //the [1] value of the array is the out value of the out token (want) of the swap
     }
 
@@ -713,9 +683,9 @@ library MakerDaiDelegateLib {
         //---WETH (ethwrapping withdraw) --> ETH --- Unwrap WETH to ETH (to be used in Curve)
         want.withdraw(_amount);  
         _amount = address(this).balance;
-        DebugDelegate(666, _amount);              
+        emit DebugDelegate(666, _amount);              
         //---ETH (steth.submit OR stableswap01) --> STETH --- test if mint or buy
-        DebugDelegate(667, StableSwapSTETH.get_dy(0,1,_amount));
+        emit DebugDelegate(667, StableSwapSTETH.get_dy(0,1,_amount));
         if (StableSwapSTETH.get_dy(0, 1, _amount) < _amount){
             //LIDO stETH MINT: 
             stETH.submit{value: _amount}(_referal);
@@ -725,10 +695,10 @@ library MakerDaiDelegateLib {
             StableSwapSTETH.exchange{value: _amount}(0, 1, _amount, _amount);
         }
         //---STETH (wsteth wrap) --> WSTETH
-        DebugDelegate(668, balanceOfstETH());
+        emit DebugDelegate(668, balanceOfstETH());
         _checkAllowance(address(yieldBearing), address(stETH), balanceOfstETH());
         yieldBearing.wrap(balanceOfstETH());
-        DebugDelegate(669, balanceOfYieldBearing());
+        emit DebugDelegate(669, balanceOfYieldBearing());
         //---> all WETH now to WSTETH
         return balanceOfYieldBearing();
     }
