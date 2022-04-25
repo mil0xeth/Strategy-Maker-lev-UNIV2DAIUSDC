@@ -50,7 +50,7 @@ def test_prod(
         vault.updateStrategyDebtRatio(strat_address, 0, {"from": gov})
 
     vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 0, {"from": gov})
-
+    strategy.updateMaxSingleTrade(1e40, {"from": gov})
     weth.approve(vault, 2 ** 256 - 1, {"from": weth_whale})
     vault.deposit(250 * (10 ** weth.decimals()), {"from": weth_whale})
 
