@@ -114,6 +114,7 @@ def test_withdraw_does_not_leave_debt_under_floor(
 def test_large_deposit_does_not_generate_debt_over_ceiling(
     vault, test_strategy, token, token_whale_BIG, yvault, borrow_token, gov
 ):
+    test_strategy.updateMaxSingleTrade(1e40, {"from": gov})
     # Deposit to the vault and send funds through the strategy
     token.approve(vault.address, 2 ** 256 - 1, {"from": token_whale_BIG})
     vault.deposit(token.balanceOf(token_whale_BIG), {"from": token_whale_BIG})
@@ -158,6 +159,7 @@ def DISABLED_withdraw_everything_with_vault_in_debt_ceiling(
 def test_large_want_balance_does_not_generate_debt_over_ceiling(
     vault, test_strategy, token, token_whale_BIG, yvault, borrow_token, gov
 ):
+    test_strategy.updateMaxSingleTrade(1e40, {"from": gov})
     # Deposit to the vault and send funds through the strategy
     token.approve(vault.address, 2 ** 256 - 1, {"from": token_whale_BIG})
     vault.deposit(Wei("250_000 ether"), {"from": token_whale_BIG})

@@ -33,7 +33,7 @@ contract Strategy is BaseStrategy {
     using Address for address;
     using SafeMath for uint256;
 
-    event Debug(uint256 _number, uint _value);
+    //event Debug(uint256 _number, uint _value);
 
     //yieldBearing used as collateral in Maker. Here: WSTETH 
     IWstETH internal constant yieldBearing = IWstETH(0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0);
@@ -122,7 +122,7 @@ contract Strategy is BaseStrategy {
     uint256 internal maxLoss;
 
     // Maximum Single Trade possible
-    //uint256 public maxSingleTrade;
+    uint256 public maxSingleTrade;
 
     // Repayment below debt floor amount that is partially repaid with free investmentoken and partially flashloan 
     uint256 internal totalRepayAmount;
@@ -219,7 +219,7 @@ contract Strategy is BaseStrategy {
         slippageProtection = 100;
 
         //1000 ETH maximum trade
-        //maxSingleTrade = 1_000 * 1e18;
+        maxSingleTrade = 1_000 * 1e18;
 
         // Set health check to health.ychad.eth
         healthCheck = 0xDDCea799fF1699e98EDF118e0629A974Df7DF012;
@@ -252,11 +252,11 @@ contract Strategy is BaseStrategy {
 
     // ----------------- SETTERS & MIGRATION -----------------
 
-/*
+
     function updateMaxSingleTrade(uint256 _maxSingleTrade) public onlyVaultManagers {
         maxSingleTrade = _maxSingleTrade;
     }
-
+/*
     function updateReferal(address _referal) public onlyEmergencyAuthorized {
         referal = _referal;
     }
@@ -454,8 +454,8 @@ contract Strategy is BaseStrategy {
             ? totalAssetsAfterProfit.sub(totalDebt)
             : 0;
         uint256 _amountFreed;
-        (_amountFreed, _loss) = liquidatePosition(_debtOutstanding.add(_profit));
-        //(_amountFreed, _loss) = liquidatePosition(Math.min(maxSingleTrade, _debtOutstanding.add(_profit)));
+        //(_amountFreed, _loss) = liquidatePosition(_debtOutstanding.add(_profit));
+        (_amountFreed, _loss) = liquidatePosition(Math.min(maxSingleTrade, _debtOutstanding.add(_profit)));
         _debtPayment = Math.min(_debtOutstanding, _amountFreed);
         //Net profit and loss calculation
         if (_loss > _profit) {
@@ -477,9 +477,9 @@ contract Strategy is BaseStrategy {
             //Determine amount of Want to Deposit
             //amount initially in want
             //exchange want to yieldBearing to later deposit and overwrite _amount variable to yieldBearing amount
-            uint256 _amount = MakerDaiDelegateLib._swapWantToYieldBearing(balanceOfWant().sub(_debtOutstanding), referal);
-            //maxSingelTrade integration:
-            //uint256 _amount = MakerDaiDelegateLib._swapWantToYieldBearing(Math.min(maxSingleTrade, balanceOfWant().sub(_debtOutstanding)), referal);
+            //uint256 _amount = MakerDaiDelegateLib._swapWantToYieldBearing(balanceOfWant().sub(_debtOutstanding), referal);
+            //maxSingleTrade integration:
+            uint256 _amount = MakerDaiDelegateLib._swapWantToYieldBearing(Math.min(maxSingleTrade, balanceOfWant().sub(_debtOutstanding)), referal);
             //Check Allowance to lock Collateral 
             _checkAllowance(gemJoinAdapter, address(yieldBearing), _amount);
             _lockCollateralAndMintDai(_amount, _investmentTokenAmountToMint(_amount));
@@ -514,10 +514,9 @@ contract Strategy is BaseStrategy {
             return (_wantAmountNeeded, 0);
         }
         //Amount of yieldBearing necessary to be swapped to pay off necessary want, minus free want
-        //old method: use steth to eth 1:1 relationship
+        //reliable method: use steth to eth 1:1 relationship
         uint256 yieldBearingAmountToFree = yieldBearing.getWstETHByStETH(_wantAmountNeeded.sub(wantBalance));
-        //new method: compare oracle prices: 
-        //debugTrace error origin:
+        //test method: compare oracle prices: 
         //uint256 yieldBearingAmountToFree = (_wantAmountNeeded.sub(wantBalance)).mul(_getWantUSDPrice()).div(collateralPrice);
         
         // Is there enough free yield bearing to pay off everything?
@@ -982,25 +981,25 @@ contract Strategy is BaseStrategy {
     // Returns the minimum price of Want available in DAI
     function _getWantUSDPrice() internal view returns (uint256) {
         // Use price from spotter as base
-        uint256 minPrice = MakerDaiDelegateLib.getIlkOSMPrice(ilk_want, wantToUSDOSMProxy);
+        return MakerDaiDelegateLib.getIlkOSMPrice(ilk_want, wantToUSDOSMProxy);
         //uint256 minPrice = MakerDaiDelegateLib.getSpotPrice(ilk_want);
         // If price is set to 0 then we hope no liquidations are taking place
         // Emergency scenarios can be handled via manual debt repayment or by
         // granting governance access to the CDP
-        require(minPrice > 0); // dev: invalid spot price
-        return minPrice.mul(RAY).div(MakerDaiDelegateLib.getDaiPar());
+        //return minPrice.mul(RAY).div(MakerDaiDelegateLib.getDaiPar());
+        //return minPrice;
     }
 
     // Returns the minimum price of yieldBearing available in DAI
     function _getYieldBearingUSDPrice() internal view returns (uint256) {
         //No OSM Proxy for WSTETH at the moment, so everything testmode:
-        uint256 minPrice = MakerDaiDelegateLib.getIlkOSMPrice(ilk_yieldBearing, yieldBearingToUSDOSMProxy);
+        return MakerDaiDelegateLib.getIlkOSMPrice(ilk_yieldBearing, yieldBearingToUSDOSMProxy);
         //uint256 minPrice = MakerDaiDelegateLib.getSpotPrice(ilk_yieldBearing);
         // If price is set to 0 then we hope no liquidations are taking place
         // Emergency scenarios can be handled via manual debt repayment or by
         // granting governance access to the CDP
-        require(minPrice > 0); // dev: invalid spot price
-        return minPrice.mul(RAY).div(MakerDaiDelegateLib.getDaiPar());
+        //return minPrice.mul(RAY).div(MakerDaiDelegateLib.getDaiPar());
+        //return minPrice;
     }
 
     function _valueOfInvestment() internal view returns (uint256) {

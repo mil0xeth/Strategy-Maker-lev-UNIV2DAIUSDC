@@ -271,7 +271,9 @@ library MakerDaiDelegateLib {
                 // Ignore price peep()'d from OSM. Maybe we are no longer authorized.
             }
         }
-        return minPrice;
+        require(minPrice > 0); // dev: invalid spot price
+        return minPrice.mul(RAY).div(getDaiPar());
+        //return minPrice;
     }
 
 
