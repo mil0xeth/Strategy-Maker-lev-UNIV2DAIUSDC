@@ -545,17 +545,16 @@ contract Strategy is BaseStrategy {
         //New Ratio through calculation with terms denominated in investment token
         uint256 yieldBearingAmountToFreeIT = yieldBearingAmountToFree.mul(collateralPrice).div(WAD);
         uint256 collateralIT = balanceOfMakerVault().mul(collateralPrice).div(WAD);
-        //New version accounting for investmentToken Investment in yVault. Subtract debt plus liquidate amount from collateral plus investment OR set to Zero.
+        //New version accounting for investmentToken Investment in yVault in case investment is drained. Subtract debt plus liquidate amount from collateral plus investment OR set to Zero.
         uint256 totalPositiveIT = collateralIT.add(_valueOfInvestment());
-        uint256 totalNegativeIT = totalDebt.add(yieldBearingAmountToFreeIT);
-        
+        uint256 totalNegativeIT = totalDebt.add(yieldBearingAmountToFreeIT); 
         if (totalPositiveIT > totalNegativeIT) {
             collateralIT = totalPositiveIT.sub(totalNegativeIT);
         } else {
             collateralIT = 0;
         }
         uint256 newRatio = collateralIT.mul(WAD).div(totalDebt);
-        //Old version not accounting for investmentToken Investment status
+        //Old version not accounting for investmentToken Investment amount:
         //uint256 newRatio = collateralIT.sub(yieldBearingAmountToFreeIT).mul(WAD).div(totalDebt);
 
         //Attempt to repay necessary debt to restore the target collateralization ratio 
@@ -669,7 +668,6 @@ contract Strategy is BaseStrategy {
     function _repayDebt(uint256 currentRatio) internal {
         //Debt denoted in Investment Token
         uint256 currentDebt = balanceOfDebt();
-        //emit Debug(4, currentDebt);
         // Nothing to repay if we are over the collateralization ratio
         // or there is no debt
         if (currentRatio > collateralizationRatio || currentDebt == 0) {
@@ -682,7 +680,6 @@ contract Strategy is BaseStrategy {
         // new_debt = current_debt * current_ratio / desired_ratio
         // and the amount to repay is the difference between current_debt and new_debt
         uint256 newDebt = currentDebt.mul(currentRatio).div(collateralizationRatio);
-        //emit Debug(14, newDebt);
 
         //amountToRepay denoted in Investment Token    
         uint256 amountToRepay;
@@ -801,21 +798,16 @@ contract Strategy is BaseStrategy {
     function _depositInvestmentTokenInYVault() internal {
         uint256 balanceIT = balanceOfInvestmentToken();
         if (balanceIT > 10000) {
-            //emit Debug(2121212, balanceIT);
             //Calculate amount of investmentTokens to convert to want to deposit afterwards as collateral
             balanceIT = balanceIT.mul(reinvestmentLeverageComponent).div(10000);
-            //emit Debug(2121213, balanceIT);
             uint256 wantAmountOut = MakerDaiDelegateLib._swapInvestmentTokenToWant(balanceIT, router);
             //Convert investmentToken into yieldBearing & lock as collateral
-            //emit Debug(2121214, wantAmountOut);
             _lockCollateralAndMintDai(MakerDaiDelegateLib._swapWantToYieldBearing(wantAmountOut, referal), 0);
             collateralizationRatio = getCurrentMakerVaultRatio();            
 
             //Rest of investmentToken deposit into yVault
             balanceIT = balanceOfInvestmentToken();
             _checkAllowance(address(yVault), address(investmentToken), balanceIT);
-            //yVault.deposit();
-            //emit Debug(2121214, balanceIT);
             yVault.deposit(balanceIT);
             //Keep a minimum of 1000 wei of investmenttoken for DYDX flashloan
         }
@@ -921,11 +913,12 @@ contract Strategy is BaseStrategy {
     function balanceOfstETH() public view returns (uint256) {
         return stETH.balanceOf(address(this));
     }
-/*
+/* //Implementation without DYDX Flashloan:
     function balanceOfInvestmentToken() public view returns (uint256) {
         return investmentToken.balanceOf(address(this));
     }
 */
+    //DYDX requires a minimum of a few wei to use Flashloan for investmentToken. Create 1000 wei floor of investmentToken to allow flashloan anytime:
     function balanceOfInvestmentToken() public view returns (uint256) {
         uint256 tokenBalance = investmentToken.balanceOf(address(this));
         if (tokenBalance > 1000) {
@@ -1053,39 +1046,5 @@ contract Strategy is BaseStrategy {
         return _amount.mul(WAD).div(_getWantUSDPrice());
     }
     
-/*
-
-    function _convertYieldBearingAmountToWant(uint256 _amount)
-        internal
-        view
-        returns (uint256)
-    {
-        // WstETH from stETH wrapping/unrapping 1:1
-        // treat stETH as 1:1 with ETH/WETH.
-        // Reasoning: We are purposely treating stETH and ETH as being equivalent. 
-        // This is for a few reasons. The main one is that we do not have a good way to value stETH at any current time without creating exploit routes.
-        // Currently you can mint eth for steth but can't burn steth for eth so need to sell. Once eth 2.0 is merged you will be able to burn 1-1 as well.
-        // The main downside here is that we will noramlly overvalue our position as we expect stETH to trade slightly below peg.
-        // That means we will earn profit on deposits and take losses on withdrawals.
-        // This may sound scary but it is the equivalent of using virtualprice in a curve lp. As we have seen from many exploits, virtual pricing is safer than touch pricing.
-        
-        //yieldBearing amount = _amount --> how much steth would we get?  --> steth 1:1 eth
-        return yieldBearing.getStETHByWstETH(_amount);
-    }
-
-
-
-    function _convertWantAmountToYieldBearingWithLosses(uint256 _amount)
-        internal
-        view
-        returns (uint256)
-    {
-        
-        //Want to WstETH amount through ETH/WETH 1:1 stETH
-        //return yieldBearing.getWstETHByStETH(_amount);
-        //Alternative: by price oracle
-        return amount.mul(_getWantUSDPrice()).div(_getYieldBearingUSDPrice());
-    }
-    */
 
 }

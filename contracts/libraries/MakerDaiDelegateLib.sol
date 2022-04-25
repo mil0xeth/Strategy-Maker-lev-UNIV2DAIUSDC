@@ -465,28 +465,15 @@ library MakerDaiDelegateLib {
         //DYDX
         //--------------------------
         uint256 amountInSolo = token.balanceOf(SOLO);
-        //emit DebugDelegate(11112, amountInSolo);
         // DYDX
         ISoloMargin solo = ISoloMargin(SOLO);
         uint256 numMarkets = solo.getNumMarkets();
-        //dyDxMarketID for DAI is 3. Use loop below to find off-chain.
+        //dyDxMarketID for DAI is 3.
         uint256 dyDxMarketId = 3;
-            /*
-            for (uint256 i = 0; i < numMarkets; i++) {
-                emit DebugDelegate(11113, i);
-                curToken = solo.getMarketTokenAddress(i);
-                if (curToken == _token) {
-                    dyDxMarketId = i;
-                    return;
-                }
-            }
-            */
-        //emit DebugDelegate(11113, payWithFlashloan);
+
         _checkAllowance(address(SOLO), _token, payWithFlashloan);
         payWithFlashloan = Math.min(amountInSolo, payWithFlashloan);
-        //emit DebugDelegate(11114, payWithFlashloan);
-        //payWithFlashloan = payWithFlashloan.add(2); // we need to overcollateralise on way back
-        bytes memory data = abi.encode(payWithFlashloan, payWithFlashloan.add(2));
+        bytes memory data = abi.encode(payWithFlashloan, payWithFlashloan.add(2)); // we need to overcollateralise on way back
 
         // 1. Withdraw $
         // 2. Call callFunction(...)
@@ -520,8 +507,6 @@ library MakerDaiDelegateLib {
         address yieldBearingAdd = address(yieldBearing);
 
         //calculate how much is _totalRepayAmount
-        emit DebugDelegate(40, _totalRepayAmount);
-        emit DebugDelegate(41, _flashloanAmount);
         uint256 repayAmount = _flashloanAmount.add(_fee);
         //How much yieldBearing it takes to buy enough investmentToken through curve 
         
@@ -531,7 +516,7 @@ library MakerDaiDelegateLib {
                 router.getAmountsIn(repayAmount, 
                     getTokenOutPath(wantAdd, investmentTokenAdd))[0]
                 ));
-        /*
+        /* //test method for UniswapV3 implementation:
         uint wantPrice = getSpotPrice(ilk_want).mul(RAY).div(getDaiPar());
         uint256 curveroute = 
             yieldBearing.getWstETHByStETH(
@@ -540,21 +525,14 @@ library MakerDaiDelegateLib {
                 repayAmount.div(wantPrice))
                 );
         */
-        emit DebugDelegate(42, curveroute);
         //Account for slippage through the curve route
         //uint256 slippageProtection = address(this).slippageProtection;
         uint256 slippageProtection = 100;
         curveroute = curveroute.mul(10000 + slippageProtection).div(10000).add(1);
-        emit DebugDelegate(95, curveroute);
-        //emit DebugDelegate(96, routerroute);
-        //uint256 repayAmountInYieldBearing = Math.min(curveroute, routerroute);
         uint256 repayAmountInYieldBearing = curveroute;
-        //uint256 repayAmountInYieldBearing = routerroute;
-        emit DebugDelegate(97, repayAmountInYieldBearing);
         
         //DEBT WITHDRAWAL:
         uint256 currentDebt = debtForCdp(cdpIdFlash, ilk_yieldBearing).add(1);
-        emit DebugDelegate(42, currentDebt);
         //_totalRepayAmount not more than current total debt, collateral withdrawal not more than total collateral
         _totalRepayAmount = Math.min(_totalRepayAmount, currentDebt);
         repayAmountInYieldBearing = Math.min(repayAmountInYieldBearing, balanceOfCdp(cdpIdFlash, ilk_yieldBearing));
@@ -567,7 +545,6 @@ library MakerDaiDelegateLib {
         //30k debt - 15k repay = 15k < debtFloor --> total repay = full debt = 15k1
         if ( (currentDebt - _totalRepayAmount) <= debtFloor(ilk_yieldBearing).add(1e15)){
             _totalRepayAmount = currentDebt;
-            emit DebugDelegate(612366, _totalRepayAmount);
         }
         //if full debt is repaid: unlock collateral
         if (_totalRepayAmount == currentDebt){
@@ -575,27 +552,14 @@ library MakerDaiDelegateLib {
         }
 
         _checkAllowance(daiJoinAddress(), investmentTokenAdd, currentDebt);
-        emit DebugDelegate(98, repayAmountInYieldBearing);
-        emit DebugDelegate(99, balanceOfCdp(cdpIdFlash, ilk_yieldBearing));
-        emit DebugDelegate(100, _totalRepayAmount);
-        emit DebugDelegate(101, balanceOfInvestmentToken());
-        //emit DebugDelegate(101, IERC20(_reserve).balanceOf(address(this)));
         _totalRepayAmount = Math.min(_totalRepayAmount, balanceOfInvestmentToken());
         wipeAndFreeGem(gemJoinFlash, cdpIdFlash, repayAmountInYieldBearing, _totalRepayAmount);        
         //--- MAKER DEBT REPAID & YIELD BEARING UNLOCKED!
 
         //--- SWAPS FOR FLASHLOAN REPAYMENT
-        //swap yieldBearingAmount 
-        emit DebugDelegate(199, repayAmount);
-        emit DebugDelegate(200, repayAmountInYieldBearing);
-        emit DebugDelegate(201, curveroute);
-        //emit DebugDelegate(202, balanceOfYieldBearing());
-        //emit DebugDelegate(203, want.balanceOf(address(this)));
         _swapYieldBearingToWant(curveroute, 50); //100 = 1%
-        emit DebugDelegate(204, balanceOfYieldBearing());
-        emit DebugDelegate(205, want.balanceOf(address(this)));
-        //Let router swap want instead of yieldBearing to investmentToken
 
+        //UniswapV2 implementation for swapping want to investmentToken to repay Flashloan
         _checkAllowance(address(router), wantAdd, repayAmount);
         router.swapTokensForExactTokens(
             repayAmount,
@@ -605,8 +569,8 @@ library MakerDaiDelegateLib {
             address(this),
             now
         );
-        /*
-        _checkAllowance(address(router), wantAdd, type(uint256).max);
+        /* //UniswapV3 implementation for swapping want to investmentToken to repay Flashloan
+        _checkAllowance(address(router), wantAdd, repayAmount);
         ISwapRouter.ExactOutputSingleParams memory params =
             ISwapRouter.ExactOutputSingleParams({
                 tokenIn: wantAdd,
@@ -620,8 +584,6 @@ library MakerDaiDelegateLib {
             });
         router.exactOutputSingle(params);
         */
-        emit DebugDelegate(206, balanceOfInvestmentToken());
-        emit DebugDelegate(207, want.balanceOf(address(this)));
         //PAYBACK: DYDX    
     }
 
@@ -651,8 +613,8 @@ library MakerDaiDelegateLib {
             return 0;
         }
         _checkAllowance(address(_router), address(investmentToken), _amount);
-        emit DebugDelegate(10203,_amount);
-        /*
+
+        /* //UniswapV3 implementation
         ISwapRouter.ExactInputSingleParams memory params =
             ISwapRouter.ExactInputSingleParams({
                 tokenIn: address(investmentToken),
@@ -666,6 +628,7 @@ library MakerDaiDelegateLib {
             });
         return _router.exactInputSingle(params);
         */
+        //UniswapV2 implementation
         return _router.swapExactTokensForTokens(
             _amount,
             0,
@@ -684,10 +647,8 @@ library MakerDaiDelegateLib {
         }
         //---WETH (ethwrapping withdraw) --> ETH --- Unwrap WETH to ETH (to be used in Curve)
         want.withdraw(_amount);  
-        _amount = address(this).balance;
-        emit DebugDelegate(666, _amount);              
+        _amount = address(this).balance;        
         //---ETH (steth.submit OR stableswap01) --> STETH --- test if mint or buy
-        emit DebugDelegate(667, StableSwapSTETH.get_dy(0,1,_amount));
         if (StableSwapSTETH.get_dy(0, 1, _amount) < _amount){
             //LIDO stETH MINT: 
             stETH.submit{value: _amount}(_referal);
@@ -697,10 +658,8 @@ library MakerDaiDelegateLib {
             StableSwapSTETH.exchange{value: _amount}(0, 1, _amount, _amount);
         }
         //---STETH (wsteth wrap) --> WSTETH
-        emit DebugDelegate(668, balanceOfstETH());
         _checkAllowance(address(yieldBearing), address(stETH), balanceOfstETH());
         yieldBearing.wrap(balanceOfstETH());
-        emit DebugDelegate(669, balanceOfYieldBearing());
         //---> all WETH now to WSTETH
         return balanceOfYieldBearing();
     }
@@ -721,11 +680,7 @@ library MakerDaiDelegateLib {
         //Re-Wrap it back up: ETH to WETH
         want.deposit{value: address(this).balance}();
     }
-/*
-    function balanceOfWant() public view returns (uint256) {
-        return want.balanceOf(address(this));
-    }
-*/
+
     function balanceOfYieldBearing() public view returns (uint256) {
         return yieldBearing.balanceOf(address(this));
     }
