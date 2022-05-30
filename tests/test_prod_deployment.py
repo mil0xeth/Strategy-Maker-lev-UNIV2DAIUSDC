@@ -5,7 +5,7 @@ from eth_abi import encode_single
 
 
 def test_prod(
-    yvault, healthCheck, productionVault, yieldBearingToken, weth, dai, strategist, weth_whale, dai_whale, MakerDaiDelegateClonerChoice, Strategy, price_oracle_want_to_eth, ilk_want, ilk_yieldBearing, osmProxy_want, osmProxy_yieldBearing, gemJoinAdapter
+wsteth, steth, StableSwapSTETH, yvault, healthCheck, productionVault, yieldBearingToken, weth, dai, strategist, weth_whale, dai_whale, MakerDaiDelegateClonerChoice, Strategy, price_oracle_want_to_eth, ilk_want, ilk_yieldBearing, osmProxy_want, osmProxy_yieldBearing, gemJoinAdapter
 ):
 #yvWETH vault:
     vault = productionVault

@@ -22,11 +22,10 @@ import {
     Address
 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
+//Maker Flashmint:
+import "../../interfaces/makerflashmint/IERC3156FlashBorrower.sol";
+import "../../interfaces/makerflashmint/IERC3156FlashLender.sol";
 
-//DYDX FLashloan
-import "../../interfaces/DyDx/ISoloMargin.sol";
-//import "../../interfaces/DyDx/DydxFlashLoanBase.sol";
-//import "../../interfaces/DyDx/ICallee.sol";
 
 //OSM
 import "../../interfaces/yearn/IOSMedianizer.sol";
@@ -48,14 +47,9 @@ library MakerDaiDelegateLib {
     IERC20 internal constant investmentToken = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
     ICurveFi internal constant StableSwapSTETH = ICurveFi(0xDC24316b9AE028F1497c275EB9192a3Ea0f67022);
 
-    //uint256 public maxSingleTrade;
-
-
-    //Maker Flashmint:
-    address private constant dssflashmint = 0x1EB4CF3A948E7D72A198fe073cCb8C7a948cD853;
-
-    //DYDX Flashloan
-    address private constant SOLO = 0x1E0447b19BB6EcFdAe1e4AE1694b0C3659614e4e;
+    //MAKER Flashmint:
+    address private constant MAKERflashmint = 0x1EB4CF3A948E7D72A198fe073cCb8C7a948cD853;
+    //functions: vatDaiFlashLoan, flashLoan
 
     
 
@@ -462,33 +456,28 @@ library MakerDaiDelegateLib {
         emit DebugDelegate(11110, payWithFlashloan);        
 
         //---------------------------
-        //DYDX
+        //Maker Flashmint:
         //--------------------------
-        uint256 amountInSolo = token.balanceOf(SOLO);
-        // DYDX
-        ISoloMargin solo = ISoloMargin(SOLO);
-        uint256 numMarkets = solo.getNumMarkets();
-        //dyDxMarketID for DAI is 3.
-        uint256 dyDxMarketId = 3;
-
-        _checkAllowance(address(SOLO), _token, payWithFlashloan);
-        payWithFlashloan = Math.min(amountInSolo, payWithFlashloan);
-        bytes memory data = abi.encode(payWithFlashloan, payWithFlashloan.add(2)); // we need to overcollateralise on way back
+        IERC3156FlashLender makermintLender = IERC3156FlashLender(MAKERflashmint);
+        _checkAllowance(MAKERflashmint, _token, payWithFlashloan);
+        //bytes memory data = abi.encode(payWithFlashloan, payWithFlashloan.add(2)); // we need to overcollateralise on way back
+        bytes memory data = abi.encode(payWithFlashloan, payWithFlashloan); // we need to overcollateralise on way back
 
         // 1. Withdraw $
         // 2. Call callFunction(...)
         // 3. Deposit back $
-        Actions.ActionArgs[] memory operations = new Actions.ActionArgs[](3);
-
-        operations[0] = _getWithdrawAction(dyDxMarketId, payWithFlashloan);
-        operations[1] = _getCallAction(data);
-        operations[2] = _getDepositAction(dyDxMarketId, payWithFlashloan.add(2));
-
-        Account.Info[] memory accountInfos = new Account.Info[](1);
-        accountInfos[0] = _getAccountInfo();
-
-        solo.operate(accountInfos, operations);
+        //Actions.ActionArgs[] memory operations = new Actions.ActionArgs[](3);
+        //operations[0] = _getWithdrawAction(dyDxMarketId, payWithFlashloan);
+        //operations[1] = _getCallAction(data);
+        //operations[2] = _getDepositAction(dyDxMarketId, payWithFlashloan.add(2));
+        //Account.Info[] memory accountInfos = new Account.Info[](1);
+        //accountInfos[0] = _getAccountInfo();
+        //solo.operate(accountInfos, operations);
         emit DebugDelegate(11115, payWithFlashloan);
+        //Call Maker Flashmint function:
+        //address receiver, address token, uint256 amount, bytes data, {'from': Account})
+        //makermintLender.flashLoan(IERC3156FlashBorrower(address(this)), _token, payWithFlashloan, data);
+        makermintLender.flashLoan(address(this), _token, payWithFlashloan, data);
     }
 
     //Flashloan Pool calls this function after doing flash loan
@@ -539,7 +528,6 @@ library MakerDaiDelegateLib {
 
         //if the remaining debt is below the debtFloor & retainDebtFloor == false --> pay off full debt
         //if the remaining debt is below the debtFloor & retainDebtFloor == true --> pay off only until debtFloor+1e
-        //debtFloor.add(1e15)
         //30k debt - 30k repay = 0 < debtFloor --> total repay = full debt = 15k1
         //30k debt - 20k repay = 10k < debtFloor --> total repay = full debt = 15k1
         //30k debt - 15k repay = 15k < debtFloor --> total repay = full debt = 15k1
@@ -550,15 +538,14 @@ library MakerDaiDelegateLib {
         if (_totalRepayAmount == currentDebt){
             repayAmountInYieldBearing = balanceOfCdp(cdpIdFlash, ilk_yieldBearing);
         }
-
+        //Repay Maker debt
         _checkAllowance(daiJoinAddress(), investmentTokenAdd, currentDebt);
         _totalRepayAmount = Math.min(_totalRepayAmount, balanceOfInvestmentToken());
         wipeAndFreeGem(gemJoinFlash, cdpIdFlash, repayAmountInYieldBearing, _totalRepayAmount);        
-        //--- MAKER DEBT REPAID & YIELD BEARING UNLOCKED!
-
+        //--- MAKER DEBT REPAID & YIELD BEARING UNLOCKED
+        //Flashmint needs to be repaid:
         //--- SWAPS FOR FLASHLOAN REPAYMENT
         _swapYieldBearingToWant(curveroute, 50); //100 = 1%
-
         //UniswapV2 implementation for swapping want to investmentToken to repay Flashloan
         _checkAllowance(address(router), wantAdd, repayAmount);
         router.swapTokensForExactTokens(
@@ -584,7 +571,11 @@ library MakerDaiDelegateLib {
             });
         router.exactOutputSingle(params);
         */
-        //PAYBACK: DYDX    
+        //PAYBACK: MAKER
+        emit DebugDelegate(1, repayAmount);
+        emit DebugDelegate(2, investmentToken.balanceOf(address(this)));
+        emit DebugDelegate(1234, want.balanceOf(address(this)));
+        _checkAllowance(MAKERflashmint, investmentTokenAdd, repayAmount);
     }
 
     function getTokenOutPath(address _token_in, address _token_out)
@@ -654,8 +645,10 @@ library MakerDaiDelegateLib {
             stETH.submit{value: _amount}(_referal);
         }else{ 
             //approve Curve ETH/stETH StableSwap & exchange eth to steth
-            _checkAllowance(address(StableSwapSTETH), address(stETH), _amount);       
-            StableSwapSTETH.exchange{value: _amount}(0, 1, _amount, _amount);
+            _checkAllowance(address(StableSwapSTETH), address(stETH), _amount);    
+            emit DebugDelegate(9876, _amount);   
+            StableSwapSTETH.exchange{value: _amount}(0, 1, _amount, 0);
+            emit DebugDelegate(9877, _amount);
         }
         //---STETH (wsteth wrap) --> WSTETH
         _checkAllowance(address(yieldBearing), address(stETH), balanceOfstETH());
@@ -676,7 +669,9 @@ library MakerDaiDelegateLib {
         //emit Debug(111, StableSwapSTETH.get_dy(1, 0, _amount));  
         //---STEHT --> ETH
         _checkAllowance(address(StableSwapSTETH), address(stETH), _amount);
+        emit DebugDelegate(6789, _amount);
         StableSwapSTETH.exchange(1, 0, _amount, _amount.mul(10000 - _slippageProtection).div(10000));
+        emit DebugDelegate(6790, _amount);
         //Re-Wrap it back up: ETH to WETH
         want.deposit{value: address(this).balance}();
     }
@@ -698,78 +693,5 @@ library MakerDaiDelegateLib {
         }
         return tokenBalance;
     }
-
-
-
-    //DYDX FlashLoanBase:
-    function _getAccountInfo() internal view returns (Account.Info memory) {
-        return Account.Info({owner: address(this), number: 1});
-    }
-
-    function _getWithdrawAction(uint256 marketId, uint256 amount) internal view returns (Actions.ActionArgs memory) {
-        return
-            Actions.ActionArgs({
-                actionType: Actions.ActionType.Withdraw,
-                accountId: 0,
-                amount: Types.AssetAmount({
-                    sign: false,
-                    denomination: Types.AssetDenomination.Wei,
-                    ref: Types.AssetReference.Delta,
-                    value: amount
-                }),
-                primaryMarketId: marketId,
-                secondaryMarketId: 0,
-                otherAddress: address(this),
-                otherAccountId: 0,
-                data: ""
-            });
-    }
-
-    function _getCallAction(bytes memory data) internal view returns (Actions.ActionArgs memory) {
-        return
-            Actions.ActionArgs({
-                actionType: Actions.ActionType.Call,
-                accountId: 0,
-                amount: Types.AssetAmount({sign: false, denomination: Types.AssetDenomination.Wei, ref: Types.AssetReference.Delta, value: 0}),
-                primaryMarketId: 0,
-                secondaryMarketId: 0,
-                otherAddress: address(this),
-                otherAccountId: 0,
-                data: data
-            });
-    }
-
-    function _getDepositAction(uint256 marketId, uint256 amount) internal view returns (Actions.ActionArgs memory) {
-        return
-            Actions.ActionArgs({
-                actionType: Actions.ActionType.Deposit,
-                accountId: 0,
-                amount: Types.AssetAmount({
-                    sign: true,
-                    denomination: Types.AssetDenomination.Wei,
-                    ref: Types.AssetReference.Delta,
-                    value: amount
-                }),
-                primaryMarketId: marketId,
-                secondaryMarketId: 0,
-                otherAddress: address(this),
-                otherAccountId: 0,
-                data: ""
-            });
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 }

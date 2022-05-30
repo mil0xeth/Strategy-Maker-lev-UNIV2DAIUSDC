@@ -5,8 +5,6 @@ pragma experimental ABIEncoderV2;
 import {BaseStrategy} from "@yearnvaults/contracts/BaseStrategy.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 import {
-    SafeERC20,
-    SafeMath,
     IERC20,
     Address
 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
@@ -27,11 +25,11 @@ import "../interfaces/curve/Curve.sol";
 //import "../interfaces/swap/ISwapRouter.sol";
 import "../interfaces/swap/ISwap.sol";
 
+//Maker Flashmint:
+//import "../../interfaces/makerflashmint/IERC3156FlashBorrower.sol";
 
 contract Strategy is BaseStrategy {
-    using SafeERC20 for IERC20;
     using Address for address;
-    using SafeMath for uint256;
 
     //event Debug(uint256 _number, uint _value);
 
@@ -44,9 +42,8 @@ contract Strategy is BaseStrategy {
     // Token Adapter Module for collateral. Here: WSTETH    
     address internal gemJoinAdapter = 0x10CD5fbe1b404B7E19Ef964B63939907bdaf42E2;
 
-
-    //DYDX Flashloan
-    address private constant SOLO = 0x1E0447b19BB6EcFdAe1e4AE1694b0C3659614e4e;
+    //MAKER Flashmint:
+    address private constant MAKERflashmint = 0x1EB4CF3A948E7D72A198fe073cCb8C7a948cD853;
 
 
     ISteth internal constant stETH =  ISteth(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84);
@@ -216,10 +213,10 @@ contract Strategy is BaseStrategy {
         reinvestmentLeverageComponent = 5000;
     
         //100 = 1%, 
-        slippageProtection = 100;
+        slippageProtection = 9500;
 
         //1000 ETH maximum trade
-        maxSingleTrade = 1_000 * 1e18;
+        maxSingleTrade = 1000e18;
 
         // Set health check to health.ychad.eth
         healthCheck = 0xDDCea799fF1699e98EDF118e0629A974Df7DF012;
@@ -333,17 +330,18 @@ contract Strategy is BaseStrategy {
         maxLoss = _maxLoss;
     }
 
+*/
+/*
     // Set slippage protection for Curve
     function setSlippageProtection(uint256 _slippageProtection)
         external
         onlyVaultManagers
     {
-        require(_slippageProtection <= 10000);
         slippageProtection = _slippageProtection;
     }
-
-
 */
+
+
 
 
     // Required to move funds to a new cdp and use a different cdpId after migration
@@ -752,22 +750,25 @@ contract Strategy is BaseStrategy {
         }
     }
 
-
-    //DyDx calls this function after doing flash loan
-    function callFunction(
-        address sender,
-        Account.Info memory account,
-        bytes memory data
-    ) public {
+    //Maker Flashmint calls this function after doing flash loan
+    function onFlashLoan(
+        address initiator,
+        address token,
+        uint256 amount,
+        uint256 fee,
+        bytes calldata data
+    ) external returns (bytes32) {
         (uint256 flashloanAmount, uint256 repayAmount) = abi.decode(data, (uint256, uint256));
-        require(msg.sender == SOLO, "NOT_SOLO");
+        require(msg.sender == MAKERflashmint);
+        require(initiator == address(this));
         MakerDaiDelegateLib.executeFlashloan(
             flashloanAmount,
-            2,
+            fee,
             cdpId,
             router,
             repayAmount
         );
+        return keccak256("ERC3156FlashBorrower.onFlashLoan");
     }   
 
     function _investmentTokenAmountToMint(uint256 _amount) internal returns (uint256) {
