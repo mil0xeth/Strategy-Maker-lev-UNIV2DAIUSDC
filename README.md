@@ -1,9 +1,5 @@
-# Strategy-Maker-lev-wstETH
-- The strategy swaps/stakes WETH to wstETH (according to maximum output) to collateralize it on Maker and mints DAI. The DAI is then deposited part in yvDAI and part in swapping/staking more wstETH to collateralize in Maker further.
-- Advantages: Leveraged yield from staking rewards according & leveraged yield of underlying ETH if ETH price increases. In addition, depositors into the yearn vault will have exposure to this strategy without the necessary minimum Maker DAI debt requirement of 15kUSD.
-- APR yield scenario: - Aim for 1.5x leverage (300% collateralization ratio) with 200% initial collateralization ratio and 100% reinvestment ratio into wstETH. Staking yield is leveraged by 1.5x to ~6.75% ETH APR (assuming 4.5% APR for stETH from Lido Finance). Subtracting the (current) 2.5% DAI stability fee on Maker, leads to ~5.5% APR remaining, if ETH price were to be constant. If ETH price appreciates, this could be even higher: e.g. 50% increase over a year's time would lead to an additional 16.67& APR. The initial collateralization ratio should be chosen low enough to accomodate ETH price volatility.
-- The deleveraging for withdrawals or collateralization ratio adjustments is done through DYDX Flashloans (or AAVE if DYDX were to not have enough liquidity). 
-- Thanks to therealmonoloco & poolpitako for maker-dai-delegate, which this strategy builds upon.
+# Strategy-Maker-lev-GUNIV3DAIUSDC
+- The strategy uses the want token (either USDC or DAI) to create GUNIV3DAIUSDC to then collateralize it on Maker and mint DAI. The DAI is then used to create more GUNIV3DAIUSDC to collateralize it on Maker further for more DAI.
 
 ![Strategy-Maker-lev-wstETH diagram](https://github.com/mil0xeth/Strategy-Maker-lev-wstETH/blob/main/strategydiagram.jpeg?raw=true)
 
