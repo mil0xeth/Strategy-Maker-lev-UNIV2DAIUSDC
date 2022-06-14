@@ -264,7 +264,7 @@ def amount2(accounts, token, user2, token_whale):
 @pytest.fixture
 def amountBIGTIME(accounts, token, user, token_whale):
     #amount = 20000 * 10 ** token.decimals()
-    amount = 10000 * 10 ** token.decimals()
+    amount = 100000 * 10 ** token.decimals()
     # In order to get some funds for the token you are about to use,
     # it impersonate an exchange address to use it's funds.
     #reserve = accounts.at("0xF977814e90dA44bFA03b6295A0616a897441aceC", force=True)

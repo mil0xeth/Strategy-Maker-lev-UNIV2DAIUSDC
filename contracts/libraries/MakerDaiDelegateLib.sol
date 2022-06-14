@@ -610,6 +610,7 @@ library MakerDaiDelegateLib {
         }
         //want=dai:
         return _amount;
+        //want=usdc:
     /*
         _checkAllowance(address(_router), address(investmentToken), _amount);
         return _router.swapExactTokensForTokens(
@@ -633,8 +634,8 @@ library MakerDaiDelegateLib {
         partnerTokenRatio = partnerTokenRatio*WAD*1e12/yieldBearing.totalSupply()/WAD;
         uint256 wantAmountForMint = _amount * wantRatio / (wantRatio + partnerTokenRatio);
         uint256 wantAmountToSwapToPartnerTokenForMint = _amount * partnerTokenRatio / (wantRatio + partnerTokenRatio);
-        //swap DAI to USDC:
-        _checkAllowance(address(_router), address(investmentToken), _amount);
+        //swap want to partnerToken:
+        _checkAllowance(address(_router), address(investmentToken), wantAmountToSwapToPartnerTokenForMint);
         _router.swapExactTokensForTokens(
             wantAmountToSwapToPartnerTokenForMint,
             0,
@@ -655,25 +656,26 @@ library MakerDaiDelegateLib {
         if (_amount == 0) {
             return;
         }
-        /*
-        //--WSTETH --> STETH
-        //emit Debug(6969, balanceOfYieldBearing());
-        _amount = Math.min(_amount, balanceOfYieldBearing());
-        _amount = yieldBearing.unwrap(_amount);
-        //emit Debug(69, _amount);
-        //emit Debug(111, StableSwapSTETH.get_dy(1, 0, _amount));  
-        //---STEHT --> ETH
-        _checkAllowance(address(StableSwapSTETH), address(stETH), _amount);
-        StableSwapSTETH.exchange(1, 0, _amount, _amount.mul(10000 - _slippageProtection).div(10000));
-        //Re-Wrap it back up: ETH to WETH
-        want.deposit{value: address(this).balance}();
-        */
+        ISwap _router = ISwap(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
+        yieldBearing.burn(Math.min(_amount, balanceOfYieldBearing()), address(this));
+        uint256 partnerTokenBalance = balanceOfPartnerToken();
+        _checkAllowance(address(_router), address(partnerToken), partnerTokenBalance);
+        _router.swapExactTokensForTokens(
+            partnerTokenBalance,
+            0,
+            getTokenOutPath(address(partnerToken), address(want)),
+            address(this),
+            now
+        );
     }
 
     function balanceOfYieldBearing() public view returns (uint256) {
         return yieldBearing.balanceOf(address(this));
     }
 
+    function balanceOfPartnerToken() public view returns (uint256) {
+        return partnerToken.balanceOf(address(this));
+    }
 
     function balanceOfInvestmentToken() public view returns (uint256) {
         uint256 tokenBalance = investmentToken.balanceOf(address(this));

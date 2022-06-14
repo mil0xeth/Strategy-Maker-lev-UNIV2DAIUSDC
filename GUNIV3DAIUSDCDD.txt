@@ -42,6 +42,8 @@ https://beta.arrakis.finance/#/vaults/0x50379f632ca68D36E50cfBC8F78fe16bd1499d1e
 
 from brownie import interface
 
+MINT:
+
 yieldBearing = interface.GUniPool("0xAbDDAfB225e10B90D798bB8A886238Fb835e2053")
 this = accounts.at("0x47ac0fb4f2d84898e4d9e7b4dab3c24507a6d503", force=True)
 dai = Contract("0x6B175474E89094C44Da98b954EedeAC495271d0F")
@@ -51,7 +53,7 @@ usdc.approve(yieldBearing, "100000000 ether", {'from': this})
 yieldBearing.mint("1000 ether", this, {'from': this})
 yieldBearing.balanceOf(this)/1e18
 
-
+BURN:
 yieldBearing.
 
 
