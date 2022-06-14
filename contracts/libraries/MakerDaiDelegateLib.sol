@@ -6,10 +6,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 
 import "../../interfaces/maker/IMaker.sol";
-import "../../interfaces/UniswapInterfaces/IWETH.sol";
-import "../../interfaces/lido/ISteth.sol";
-import "../../interfaces/lido/IWstETH.sol";
-import "../../interfaces/curve/Curve.sol";
+import "../../interfaces/GUNI/GUniPool.sol";
 
 //AMM Interface:
 //import "../../interfaces/swap/ISwapRouter.sol";
@@ -39,25 +36,27 @@ library MakerDaiDelegateLib {
     event DebugDelegate(uint256 _number, uint _value);
 
     //Strategy specific addresses:
-    IWETH internal constant want = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
-    ISteth internal constant stETH =  ISteth(0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84);
-    IWstETH internal constant yieldBearing =  IWstETH(0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0);
-    bytes32 internal constant ilk_want = 0x4554482d43000000000000000000000000000000000000000000000000000000;
-    bytes32 internal constant ilk_yieldBearing = 0x5753544554482d41000000000000000000000000000000000000000000000000;
-    address internal constant gemJoinFlash = 0x10CD5fbe1b404B7E19Ef964B63939907bdaf42E2;
+    //dai:
+    IERC20 internal constant want = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
+    IERC20 internal constant partnerToken = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
+    //usdc:
+    //IERC20 internal constant want = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
+    //IERC20 internal constant partnerToken = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
+
+    //GUNIDAIUSDC1 - Gelato Uniswap DAI/USDC LP - 0.05% fee
+    GUniPool internal constant yieldBearing = GUniPool(0xAbDDAfB225e10B90D798bB8A886238Fb835e2053);
+    bytes32 internal constant ilk_yieldBearing = 0x47554e49563344414955534443312d4100000000000000000000000000000000;
+    address internal constant gemJoinFlash = 0xbFD445A97e7459b0eBb34cfbd3245750Dba4d7a4;
+    
+    //GUNIDAIUSDC2 - Gelato Uniswap DAI/USDC2 LP 2 - 0.01% fee
+    //GUniPool internal constant yieldBearing = GUniPool(0x50379f632ca68D36E50cfBC8F78fe16bd1499d1e);
+    //bytes32 internal constant ilk_yieldBearing = 0x47554e49563344414955534443322d4100000000000000000000000000000000;
+    //address internal constant gemJoinFlash = 0xA7e4dDde3cBcEf122851A7C8F7A55f23c0Daf335;
+
     IERC20 internal constant investmentToken = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
-    ICurveFi internal constant StableSwapSTETH = ICurveFi(0xDC24316b9AE028F1497c275EB9192a3Ea0f67022);
-
-    //uint256 public maxSingleTrade;
-
-
-    //Maker Flashmint:
-    address private constant dssflashmint = 0x1EB4CF3A948E7D72A198fe073cCb8C7a948cD853;
 
     //DYDX Flashloan
     address private constant SOLO = 0x1E0447b19BB6EcFdAe1e4AE1694b0C3659614e4e;
-
-    
 
     // Units used in Maker contracts
     uint256 internal constant WAD = 10**18;
@@ -67,24 +66,19 @@ library MakerDaiDelegateLib {
     uint256 internal constant MIN_MINTABLE = 500000 * WAD;
 
     // Maker vaults manager
-    ManagerLike internal constant manager =
-        ManagerLike(0x5ef30b9986345249bc32d8928B7ee64DE9435E39);
+    ManagerLike internal constant manager = ManagerLike(0x5ef30b9986345249bc32d8928B7ee64DE9435E39);
 
     // Token Adapter Module for collateral
-    DaiJoinLike internal constant daiJoin =
-        DaiJoinLike(0x9759A6Ac90977b93B58547b4A71c78317f391A28);
+    DaiJoinLike internal constant daiJoin = DaiJoinLike(0x9759A6Ac90977b93B58547b4A71c78317f391A28);
 
     // Liaison between oracles and core Maker contracts
-    SpotLike internal constant spotter =
-        SpotLike(0x65C79fcB50Ca1594B025960e539eD7A9a6D434A3);
+    SpotLike internal constant spotter = SpotLike(0x65C79fcB50Ca1594B025960e539eD7A9a6D434A3);
 
     // Part of the Maker Rates Module in charge of accumulating stability fees
-    JugLike internal constant jug =
-        JugLike(0x19c0976f590D67707E62397C87829d896Dc0f1F1);
+    JugLike internal constant jug = JugLike(0x19c0976f590D67707E62397C87829d896Dc0f1F1);
 
     // Debt Ceiling Instant Access Module
-    DssAutoLine internal constant autoLine =
-        DssAutoLine(0xC7Bdd1F2B16447dcf3dE045C4a039A60EC2f0ba3);
+    DssAutoLine internal constant autoLine = DssAutoLine(0xC7Bdd1F2B16447dcf3dE045C4a039A60EC2f0ba3);
 
     // ----------------- PUBLIC FUNCTIONS -----------------
 
@@ -240,7 +234,6 @@ library MakerDaiDelegateLib {
         (, uint256 liquidationRatio) = spotter.ilks(ilk);
         return liquidationRatio;
     }
-
 
     function getIlkOSMPrice(bytes32 _ilk, address _OSMProxyAddress) public view returns (uint256) {
         IOSMedianizer OSMProxy = IOSMedianizer(_OSMProxyAddress);
@@ -509,13 +502,16 @@ library MakerDaiDelegateLib {
         //calculate how much is _totalRepayAmount
         uint256 repayAmount = _flashloanAmount.add(_fee);
         //How much yieldBearing it takes to buy enough investmentToken through curve 
-        
+        uint256 curveroute = 1;
+        /*
         uint256 curveroute =             
             yieldBearing.getWstETHByStETH(
                 StableSwapSTETH.get_dy(0, 1, 
                 router.getAmountsIn(repayAmount, 
                     getTokenOutPath(wantAdd, investmentTokenAdd))[0]
                 ));
+        */
+        
         /* //test method for UniswapV3 implementation:
         uint wantPrice = getSpotPrice(ilk_want).mul(RAY).div(getDaiPar());
         uint256 curveroute = 
@@ -612,23 +608,10 @@ library MakerDaiDelegateLib {
         if (_amount < 1000) {
             return 0;
         }
+        //want=dai:
+        return _amount;
+    /*
         _checkAllowance(address(_router), address(investmentToken), _amount);
-
-        /* //UniswapV3 implementation
-        ISwapRouter.ExactInputSingleParams memory params =
-            ISwapRouter.ExactInputSingleParams({
-                tokenIn: address(investmentToken),
-                tokenOut: address(want),
-                fee: 500,
-                recipient: address(this),
-                deadline: block.timestamp,
-                amountIn: _amount,
-                amountOutMinimum: 0,
-                sqrtPriceLimitX96: 0
-            });
-        return _router.exactInputSingle(params);
-        */
-        //UniswapV2 implementation
         return _router.swapExactTokensForTokens(
             _amount,
             0,
@@ -636,31 +619,35 @@ library MakerDaiDelegateLib {
             address(this),
             now
         )[1];
-        
-
         //the [1] value of the array is the out value of the out token (want) of the swap
+    */
     }
 
     function _swapWantToYieldBearing(uint256 _amount, address _referal) external returns (uint256) {
         if (_amount == 0) {
             return 0;
         }
-        //---WETH (ethwrapping withdraw) --> ETH --- Unwrap WETH to ETH (to be used in Curve)
-        want.withdraw(_amount);  
-        _amount = address(this).balance;        
-        //---ETH (steth.submit OR stableswap01) --> STETH --- test if mint or buy
-        if (StableSwapSTETH.get_dy(0, 1, _amount) < _amount){
-            //LIDO stETH MINT: 
-            stETH.submit{value: _amount}(_referal);
-        }else{ 
-            //approve Curve ETH/stETH StableSwap & exchange eth to steth
-            _checkAllowance(address(StableSwapSTETH), address(stETH), _amount);       
-            StableSwapSTETH.exchange{value: _amount}(0, 1, _amount, _amount);
-        }
-        //---STETH (wsteth wrap) --> WSTETH
-        _checkAllowance(address(yieldBearing), address(stETH), balanceOfstETH());
-        yieldBearing.wrap(balanceOfstETH());
-        //---> all WETH now to WSTETH
+        ISwap _router = ISwap(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
+        (uint256 wantRatio, uint256 partnerTokenRatio) = yieldBearing.getUnderlyingBalances();
+        wantRatio = wantRatio*WAD/yieldBearing.totalSupply()/WAD;
+        partnerTokenRatio = partnerTokenRatio*WAD*1e12/yieldBearing.totalSupply()/WAD;
+        uint256 wantAmountForMint = _amount * wantRatio / (wantRatio + partnerTokenRatio);
+        uint256 wantAmountToSwapToPartnerTokenForMint = _amount * partnerTokenRatio / (wantRatio + partnerTokenRatio);
+        //swap DAI to USDC:
+        _checkAllowance(address(_router), address(investmentToken), _amount);
+        _router.swapExactTokensForTokens(
+            wantAmountToSwapToPartnerTokenForMint,
+            0,
+            getTokenOutPath(address(want), address(partnerToken)),
+            address(this),
+            now
+        );
+        wantAmountForMint = Math.min(wantAmountForMint, want.balanceOf(address(this)));
+        uint256 partnerTokenAmountForMint = partnerToken.balanceOf(address(this)); 
+        _checkAllowance(address(yieldBearing), address(want), wantAmountForMint);
+        _checkAllowance(address(yieldBearing), address(partnerToken), partnerTokenAmountForMint);      
+        (,,uint256 mintAmount) = yieldBearing.getMintAmounts(wantAmountForMint, partnerTokenAmountForMint); 
+        yieldBearing.mint(mintAmount, address(this));
         return balanceOfYieldBearing();
     }
 
@@ -668,6 +655,7 @@ library MakerDaiDelegateLib {
         if (_amount == 0) {
             return;
         }
+        /*
         //--WSTETH --> STETH
         //emit Debug(6969, balanceOfYieldBearing());
         _amount = Math.min(_amount, balanceOfYieldBearing());
@@ -679,15 +667,13 @@ library MakerDaiDelegateLib {
         StableSwapSTETH.exchange(1, 0, _amount, _amount.mul(10000 - _slippageProtection).div(10000));
         //Re-Wrap it back up: ETH to WETH
         want.deposit{value: address(this).balance}();
+        */
     }
 
     function balanceOfYieldBearing() public view returns (uint256) {
         return yieldBearing.balanceOf(address(this));
     }
 
-    function balanceOfstETH() public view returns (uint256) {
-        return stETH.balanceOf(address(this));
-    }
 
     function balanceOfInvestmentToken() public view returns (uint256) {
         uint256 tokenBalance = investmentToken.balanceOf(address(this));

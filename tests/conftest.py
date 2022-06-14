@@ -38,38 +38,43 @@ def MakerDaiDelegateClonerChoice(MakerDaiDelegateCloner):
 #Decide on wantToken = token
 @pytest.fixture(autouse=True)
 def wantNr():    
-    wantNr = 1 #Currently: WETH
-    #0 = ETH,   1 = WETH,   2 = stETH,     3 = wstETH 
+    wantNr = 0 #Currently: 
+    #0 = DAI,   1 = USDC 
     yield wantNr
 #######################################################
-#Decide on yieldBearingToken = collateral Token on Money Market
+#Decide on yieldBearing = collateral Token on Money Market
 @pytest.fixture(autouse=True)
 def yieldBearingNr():    
-    yieldBearingNr = 3 #Currently: WETH
-    #0 = ETH,   1 = WETH,   2 = stETH,     3 = wstETH 
+    yieldBearingNr = 0 #Currently: GUNIV3DAIUSDC1 0.05%
+    #0 = GUNIV3DAIUSDC1 0.0%,   1 =  
     yield yieldBearingNr
 #######################################################
 @pytest.fixture
-def token(weth, steth, wsteth, wantNr):   
+def token(dai, usdc, wantNr):   
     #signifies want token given by wantNr
     token_address = [
-    weth,   #0 = ETH
-    weth,   #1 = WETH
-    steth,  #2 = steth
-    wsteth  #3 = wsteth
+    dai,   #0 = DAI
+    usdc,   #1 = USDC
     ]
     yield token_address[wantNr]
 
 @pytest.fixture
-def yieldBearingToken(weth, steth, wsteth, yieldBearingNr):   
+def partnerToken(dai, usdc, wantNr):   
     #signifies want token given by wantNr
-    yieldBearingToken_address = [
-    weth,   #0 = ETH
-    weth,   #1 = WETH
-    steth,  #2 = steth
-    wsteth  #3 = wsteth
+    token_address = [
+    usdc,   #0 = DAI
+    dai,   #1 = USDC
     ]
-    yield yieldBearingToken_address[yieldBearingNr]
+    yield token_address[wantNr]
+
+@pytest.fixture
+def yieldBearing(guniv3daiusdc1, guniv3daiusdc2, yieldBearingNr):   
+    #signifies want token given by wantNr
+    yieldBearing_address = [
+    guniv3daiusdc1,   #0 = GUNIV3DAIUSDC1 0.05%
+    guniv3daiusdc2,   #1 = GUNIV3DAIUSDC2 0.01%
+    ]
+    yield yieldBearing_address[yieldBearingNr]
 
 @pytest.fixture
 def borrow_token(dai):
@@ -79,32 +84,6 @@ def borrow_token(dai):
 def borrow_whale(dai_whale):
     yield dai_whale
  
-@pytest.fixture
-def ethwrapping(interface):
-    uniweth = interface.IWETH("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2")
-    yield uniweth
-
-@pytest.fixture
-def steth(interface):
-    contract = interface.ISteth("0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84")
-    yield contract
-
-@pytest.fixture
-def wsteth(interface):
-    contract = interface.IWstETH("0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0")
-    yield contract
-
-@pytest.fixture
-def StableSwapSTETH(interface):
-    contract = interface.ICurveFi("0xDC24316b9AE028F1497c275EB9192a3Ea0f67022")
-    yield contract
-
-#@pytest.fixture
-#def StableSwapContract(interface):
-#    contract = Contract("0xDC24316b9AE028F1497c275EB9192a3Ea0f67022")
-#    yield contract
-
-
 @pytest.fixture
 def yvault(yvDAI):
     yield yvDAI
@@ -119,18 +98,6 @@ def price_oracle_want_to_eth(wantNr):
     "0x5f4ec3df9cbd43714fe2740f5e3616155c5b8419"  #ETH/USD    no wsteth/USD available!
     ]
     yield interface.AggregatorInterface(oracle_address[wantNr])
-
-@pytest.fixture
-def price_oracle_yieldBearing_to_eth(yieldBearingNr):
-    oracle_address = [
-    "0x5f4ec3df9cbd43714fe2740f5e3616155c5b8419",  #ETH/USD
-    "0x5f4ec3df9cbd43714fe2740f5e3616155c5b8419",  #ETH/USD
-    "0xcfe54b5cd566ab89272946f602d76ea879cab4a8",  #stETH/USD
-    "0x5f4ec3df9cbd43714fe2740f5e3616155c5b8419"  #ETH/USD    no wsteth/USD available!
-    ]
-    yield interface.AggregatorInterface(oracle_address[yieldBearingNr])
-
-
 #############################################################
 
 @pytest.fixture
@@ -138,20 +105,25 @@ def weth():
     token_address = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" #WETH
     yield Contract(token_address)   
 
-#@pytest.fixture
-#def steth():
-#    token_address = "0xae7ab96520de3a18e5e111b5eaab095312d7fe84" #stETH
-#    yield Contract(token_address)
+@pytest.fixture
+def guniv3daiusdc1():
+    token_address = "0xAbDDAfB225e10B90D798bB8A886238Fb835e2053" #stETH
+    yield Contract(token_address)
 
-#@pytest.fixture
-#def wsteth():
-#    token_address = "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0"  # wstETH
-#    yield Contract(token_address)
+@pytest.fixture
+def guniv3daiusdc2():
+    token_address = "0x50379f632ca68D36E50cfBC8F78fe16bd1499d1e"  # wstETH
+    yield Contract(token_address)
 
 @pytest.fixture
 def dai():
     dai_address = "0x6B175474E89094C44Da98b954EedeAC495271d0F"
     yield Contract(dai_address)
+
+@pytest.fixture
+def usdc():
+    token_address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+    yield Contract(token_address)
 
 #@pytest.fixture
 #def steth_whale(accounts):
@@ -161,48 +133,40 @@ def dai():
 #def wsteth_whale(accounts):
 #    yield accounts.at("0x62e41b1185023bcc14a465d350e1dde341557925") 
 
+@pytest.fixture
+def token_whale(accounts, wantNr, dai_whale):
+    #eth_whale = accounts.at("0xda9dfa130df4de4673b89022ee50ff26f6ea73cf", force=True)
+    #token_whale_address = [
+    #"0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8",   #0 = ETH
+    #"0xe78388b4ce79068e89bf8aa7f218ef6b9ab0e9d0",   #1 = WETH  0x030bA81f1c18d280636F32af80b9AAd02Cf0854e, 0x57757e3d981446d585af0d9ae4d7df6d64647806  
+    #"0x2faf487a4414fe77e2327f0bf4ae2a264a776ad2",  #2 = steth
+    #"0x62e41b1185023bcc14a465d350e1dde341557925"  #3 = wsteth
+    #]
+    #token_whale_account = accounts.at(token_whale_address[wantNr], force=True) 
+    #eth_whale.transfer(token_whale_account, "100000 ether")
+    yield dai_whale
 
 @pytest.fixture
-def token_whale(accounts, wantNr):
+def token_whale_BIG(accounts, wantNr, dai_whale):
     #eth_whale = accounts.at("0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8", force=True)
-    eth_whale = accounts.at("0xda9dfa130df4de4673b89022ee50ff26f6ea73cf", force=True)
-    token_whale_address = [
-    "0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8",   #0 = ETH
-    "0xe78388b4ce79068e89bf8aa7f218ef6b9ab0e9d0",   #1 = WETH  0x030bA81f1c18d280636F32af80b9AAd02Cf0854e, 0x57757e3d981446d585af0d9ae4d7df6d64647806  
-    "0x2faf487a4414fe77e2327f0bf4ae2a264a776ad2",  #2 = steth
-    "0x62e41b1185023bcc14a465d350e1dde341557925"  #3 = wsteth
-    ]
-    token_whale_account = accounts.at(token_whale_address[wantNr], force=True) 
-    eth_whale.transfer(token_whale_account, "100000 ether")
-    yield token_whale_account
+    #token_whale_address = [
+    #"0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8",   #0 = ETH
+    #"0xe78388b4ce79068e89bf8aa7f218ef6b9ab0e9d0",   #1 = WETH  0x030bA81f1c18d280636F32af80b9AAd02Cf0854e, 0x57757e3d981446d585af0d9ae4d7df6d64647806  
+    #"0x2faf487a4414fe77e2327f0bf4ae2a264a776ad2",  #2 = steth
+    #"0x62e41b1185023bcc14a465d350e1dde341557925"  #3 = wsteth
+    #]
+    #token_whale_account = accounts.at(token_whale_address[wantNr], force=True) 
+    #eth_whale.transfer(token_whale_account, eth_whale.balance()*0.95)
+    #ethwrapping.deposit({'from': token_whale_account, 'value': token_whale_account.balance()*0.95})
+    #yield token_whale_account
+    yield dai_whale
 
 @pytest.fixture
-def token_whale_BIG(accounts, wantNr, ethwrapping):
-    eth_whale = accounts.at("0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8", force=True)
-    token_whale_address = [
-    "0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8",   #0 = ETH
-    "0xe78388b4ce79068e89bf8aa7f218ef6b9ab0e9d0",   #1 = WETH  0x030bA81f1c18d280636F32af80b9AAd02Cf0854e, 0x57757e3d981446d585af0d9ae4d7df6d64647806  
-    "0x2faf487a4414fe77e2327f0bf4ae2a264a776ad2",  #2 = steth
-    "0x62e41b1185023bcc14a465d350e1dde341557925"  #3 = wsteth
-    ]
-    token_whale_account = accounts.at(token_whale_address[wantNr], force=True) 
-    eth_whale.transfer(token_whale_account, eth_whale.balance()*0.95)
-    ethwrapping.deposit({'from': token_whale_account, 'value': token_whale_account.balance()*0.95})
-    yield token_whale_account
-
-
-@pytest.fixture
-def yieldBearingToken_whale(accounts, yieldBearingNr):
-    eth_whale = accounts.at("0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8", force=True)
-    yieldBearingToken_whale_address = [
-    "0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8",   #0 = ETH
-    "0xe78388b4ce79068e89bf8aa7f218ef6b9ab0e9d0",   #1 = WETH  0x030bA81f1c18d280636F32af80b9AAd02Cf0854e, 0x57757e3d981446d585af0d9ae4d7df6d64647806  
-    "0x2faf487a4414fe77e2327f0bf4ae2a264a776ad2",  #2 = steth
-    "0xdaef20ea4708fcff06204a4fe9ddf41db056ba18"  #3 = wsteth
-    ]
-    yieldBearingToken_whale_account = accounts.at(yieldBearingToken_whale_address[yieldBearingNr], force=True) 
-    eth_whale.transfer(yieldBearingToken_whale_account, "100000 ether")
-    yield yieldBearingToken_whale_account
+def yieldBearing_whale(accounts, yieldBearingNr, token_whale, yieldBearing, token, partnerToken):
+    token.approve(yieldBearing, 1000000e18, {"from": token_whale})
+    partnerToken.approve(yieldBearing, 1000000e6, {"from": token_whale})
+    yieldBearing.mint(yieldBearing.getMintAmounts(token.balanceOf(this)*0.1, partnerToken.balanceOf(this)*0.1)[2], token_whale, {"from": token_whale})
+    yield token_whale
 
 @pytest.fixture
 def weth_amount(user, weth):
@@ -216,7 +180,7 @@ def weth_whale(accounts):
 
 @pytest.fixture
 def dai_whale(accounts):
-    yield accounts.at("0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643", force=True)
+    yield accounts.at("0x47ac0fb4f2d84898e4d9e7b4dab3c24507a6d503", force=True)
 
 @pytest.fixture
 def yvDAI():
@@ -247,16 +211,13 @@ def user2(accounts):
 def rewards(accounts):
     yield accounts[1]
 
-
 @pytest.fixture
 def guardian(accounts):
     yield accounts[2]
 
-
 @pytest.fixture
 def management(accounts):
     yield accounts[3]
-
 
 @pytest.fixture
 def strategist(accounts):
@@ -265,7 +226,6 @@ def strategist(accounts):
 @pytest.fixture
 def keeper(accounts):
     yield accounts[5]
-
 
 @pytest.fixture
 def router(unirouter, sushirouter):
@@ -281,7 +241,6 @@ def unirouter():
     uniswap_router = interface.ISwap("0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D")
     yield uniswap_router
 
-
 @pytest.fixture
 def amount(accounts, token, user, token_whale):
     amount = 50 * 10 ** token.decimals()
@@ -294,7 +253,7 @@ def amount(accounts, token, user, token_whale):
 
 @pytest.fixture
 def amount2(accounts, token, user2, token_whale):
-    amount = 50 * 10 ** token.decimals()
+    amount = 1000 * 10 ** token.decimals()
     # In order to get some funds for the token you are about to use,
     # it impersonate an exchange address to use it's funds.
     #reserve = accounts.at("0xF977814e90dA44bFA03b6295A0616a897441aceC", force=True)
@@ -302,11 +261,10 @@ def amount2(accounts, token, user2, token_whale):
     token.transfer(user2, amount, {"from": reserve})
     yield amount
 
-
 @pytest.fixture
 def amountBIGTIME(accounts, token, user, token_whale):
     #amount = 20000 * 10 ** token.decimals()
-    amount = 1000 * 10 ** token.decimals()
+    amount = 10000 * 10 ** token.decimals()
     # In order to get some funds for the token you are about to use,
     # it impersonate an exchange address to use it's funds.
     #reserve = accounts.at("0xF977814e90dA44bFA03b6295A0616a897441aceC", force=True)
@@ -317,14 +275,13 @@ def amountBIGTIME(accounts, token, user, token_whale):
 @pytest.fixture
 def amountBIGTIME2(accounts, token, user2, token_whale):
     #amount = 6000 * 10 ** token.decimals()
-    amount = 600 * 10 ** token.decimals()
+    amount = 1000000 * 10 ** token.decimals()
     # In order to get some funds for the token you are about to use,
     # it impersonate an exchange address to use it's funds.
     #reserve = accounts.at("0xF977814e90dA44bFA03b6295A0616a897441aceC", force=True)
     reserve = token_whale
     token.transfer(user2, amount, {"from": reserve})
     yield amount
-
 
 @pytest.fixture
 def vault(pm, gov, rewards, guardian, management, token):
@@ -338,8 +295,8 @@ def vault(pm, gov, rewards, guardian, management, token):
 @pytest.fixture
 def productionVault(wantNr):
     vault_address = [
-    "",  #ETH/USD
-    "0xa258C4606Ca8206D8aA700cE2143D7db854D168c",  #yvWETH
+    "0xdA816459F1AB5631232FE5e97a05BBBb94970c95",  #yvDAI
+    "0xa354F35829Ae975e850e23e9615b11Da1B3dC4DE",  #yvUSDC
     "",  #yvstETH
     ""  #yvwstETH
     ]
@@ -360,7 +317,6 @@ def new_full_dai_yvault(pm, gov, rewards, guardian, management, dai, new_dai_yva
     dai.approve(yvDAI.address, "500_000 ether", {"from": dai_whale})
     yvDAI.deposit("500_000 ether", {"from": dai_whale})
     yield yvDAI
-
 
 @pytest.fixture
 def osmProxy_want():
@@ -385,13 +341,10 @@ def osmProxy_yieldBearing():
 @pytest.fixture
 def gemJoinAdapter(yieldBearingNr):
     gemJoin = [
-    "0xF04a5cC80B1E94C69B48f5ee68a08CD2F09A7c3E",   #0 = ETH     Doesn't exist ---> WETH-C
-    "0xF04a5cC80B1E94C69B48f5ee68a08CD2F09A7c3E",   #1 = WETH    is   WETH-C
-    "0x10CD5fbe1b404B7E19Ef964B63939907bdaf42E2",  #Doesn't exist yet 2 = steth ---> = wsteth  is wstETH-A
-    "0x10CD5fbe1b404B7E19Ef964B63939907bdaf42E2"  #3 = wsteth is wstETH-A
+    "0xbFD445A97e7459b0eBb34cfbd3245750Dba4d7a4",   #0 = GUNIV3DAIUSDC1 0.05%
+    "0xA7e4dDde3cBcEf122851A7C8F7A55f23c0Daf335",   #1 = GUNIV3DAIUSDC2 0.01%
     ]
     yield Contract(gemJoin[yieldBearingNr])
-
 
 @pytest.fixture
 def healthCheck(gov):
@@ -440,7 +393,7 @@ def test_strategy(
     vault,
     yvault,
     token,
-    yieldBearingToken,
+    yieldBearing,
     gemJoinAdapter,
     osmProxy_want,
     osmProxy_yieldBearing,
@@ -451,7 +404,7 @@ def test_strategy(
         TestStrategyChoice,
         vault,
         yvault,
-        "Strategy-Maker-lev-wstETH",
+        "Strategy-Maker-lev-GUNIV3DAIUSDC",
         #ilk_want,
         #ilk_yieldBearing,
         #gemJoinAdapter,
@@ -497,15 +450,10 @@ def ilk_want(wantNr):
 @pytest.fixture
 def ilk_yieldBearing(yieldBearingNr):
     ilk_hashes = [
-    "0x4554482d43000000000000000000000000000000000000000000000000000000",   #0 = WETH
-    "0x4554482d43000000000000000000000000000000000000000000000000000000",   #1 = WETH
-    "0x5753544554482d41000000000000000000000000000000000000000000000000",  #2 = wsteth
-    "0x5753544554482d41000000000000000000000000000000000000000000000000"  #3 = wsteth
+    "0x47554e49563344414955534443312d4100000000000000000000000000000000",   #0 = GUNIV3DAIUSDC1 0.05%
+    "0x47554e49563344414955534443322d4100000000000000000000000000000000",   #1 = GUNIV3DAIUSDC2 0.01%
     ]
     yield ilk_hashes[yieldBearingNr]
-
-
-
 
 @pytest.fixture(scope="session")
 def RELATIVE_APPROX():
@@ -535,7 +483,7 @@ def cloner(
     vault,
     yvault,
     token,
-    yieldBearingToken,
+    yieldBearing,
     gemJoinAdapter,
     osmProxy_want,
     osmProxy_yieldBearing,
@@ -547,7 +495,7 @@ def cloner(
         MakerDaiDelegateClonerChoice,
         vault,
         yvault,
-        "Strategy-Maker-lev-wstETH",
+        "Strategy-Maker-lev-GUNIV3DAIUSDC",
         #ilk_want,
         #ilk_yieldBearing,
         #gemJoinAdapter,

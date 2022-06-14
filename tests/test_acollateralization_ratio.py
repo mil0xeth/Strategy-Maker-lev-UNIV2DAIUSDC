@@ -3,7 +3,7 @@ from brownie import chain, reverts, Wei
 
 
 def test_vault_ratio_calculation_on_YVAULT_almost_fully_DEPLETED_on_partial_withdrawal(
-    dai, router, dai_whale, token_whale, vault, wsteth, steth, test_strategy, token, yvault, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
+    dai, router, dai_whale, token_whale, vault, test_strategy, token, yvault, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
 ):
     # Initial ratio is 0 because there is no collateral locked
     assert test_strategy.getCurrentMakerVaultRatio() == 0
@@ -36,7 +36,7 @@ def test_vault_ratio_calculation_on_YVAULT_almost_fully_DEPLETED_on_partial_with
 
 
 def test_vault_ratio_calculation_on_YVAULT_DEPLETED_on_partial_withdrawal(
-    dai, dai_whale, token_whale, vault, wsteth, steth, test_strategy, token, yvault, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
+    dai, dai_whale, token_whale, vault, test_strategy, token, yvault, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
 ):
     # Initial ratio is 0 because there is no collateral locked
     assert test_strategy.getCurrentMakerVaultRatio() == 0
@@ -69,7 +69,7 @@ def test_vault_ratio_calculation_on_YVAULT_DEPLETED_on_partial_withdrawal(
     #)
 
 def test_vault_ratio_calculation_on_YVAULT_DEPLETED_on_half_withdrawal(
-    dai, dai_whale, token_whale, vault, wsteth, steth, test_strategy, token, yvault, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
+    dai, dai_whale, token_whale, vault, test_strategy, token, yvault, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
 ):
     # Initial ratio is 0 because there is no collateral locked
     assert test_strategy.getCurrentMakerVaultRatio() == 0
@@ -103,7 +103,7 @@ def test_vault_ratio_calculation_on_YVAULT_DEPLETED_on_half_withdrawal(
 
 
 def test_vault_ratio_calculation_on_YVAULT_DEPLETED_on_almost_full_withdrawal(
-    dai, dai_whale, token_whale, vault, wsteth, steth, test_strategy, token, yvault, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
+    dai, dai_whale, token_whale, vault, test_strategy, token, yvault, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
 ):
     # Initial ratio is 0 because there is no collateral locked
     assert test_strategy.getCurrentMakerVaultRatio() == 0
@@ -139,7 +139,7 @@ def test_vault_ratio_calculation_on_YVAULT_DEPLETED_on_almost_full_withdrawal(
 
 
 def test_vault_ratio_calculation_on_BIGTIME_total_withdraw(
-   router, unirouter, dai, dai_whale, token_whale, vault, wsteth, steth, test_strategy, token, yvault, amountBIGTIME, amountBIGTIME2, user2, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
+   router, unirouter, dai, dai_whale, token_whale, vault, test_strategy, token, yvault, amountBIGTIME, amountBIGTIME2, user2, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
 ):
     # Initial ratio is 0 because there is no collateral locked
     assert test_strategy.getCurrentMakerVaultRatio() == 0
@@ -275,7 +275,7 @@ def test_vault_ratio_calculation_on_BIGTIME_total_withdraw(
 
 
 def test_vault_ratio_calculation_on_BIGTIME_total_withdraw2(
-   router, unirouter, dai, dai_whale, token_whale, vault, wsteth, steth, test_strategy, token, yvault, amountBIGTIME, amountBIGTIME2, user2, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
+   router, unirouter, dai, dai_whale, token_whale, vault,  test_strategy, token, yvault, amountBIGTIME, amountBIGTIME2, user2, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
 ):
     # Initial ratio is 0 because there is no collateral locked
     assert test_strategy.getCurrentMakerVaultRatio() == 0
@@ -561,7 +561,7 @@ def test_higher_ratio_inside_rebalancing_band_should_not_repay_debt(
 
 
 def test_vault_ratio_calculation_on_withdraw(
-    yieldBearingToken_whale, StableSwapSTETH, vault, wsteth, steth, test_strategy, token, yvault, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
+    yieldBearing_whale, vault,  test_strategy, token, yvault, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
 ):
     #strategy.setReinvestmentLeverageComponent(0, {'from': gov})
     # Initial ratio is 0 because there is no collateral locked
@@ -601,7 +601,7 @@ def test_vault_ratio_calculation_on_withdraw(
 
 
 def test_vault_ratio_calculation_on_very_low_withdraw(
-    StableSwapSTETH, vault, wsteth, steth, test_strategy, token, yvault, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
+    StableSwapSTETH, vault, test_strategy, token, yvault, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
 ):
     # Initial ratio is 0 because there is no collateral locked
     assert test_strategy.getCurrentMakerVaultRatio() == 0
@@ -636,7 +636,7 @@ def test_vault_ratio_calculation_on_very_low_withdraw(
 
 
 def test_vault_ratio_calculation_on_high_withdraw(
-    vault, wsteth, steth, test_strategy, token, yvault, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
+    vault,  test_strategy, token, yvault, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
 ):
     # Initial ratio is 0 because there is no collateral locked
     assert test_strategy.getCurrentMakerVaultRatio() == 0
@@ -669,7 +669,7 @@ def test_vault_ratio_calculation_on_high_withdraw(
     assert yvault.balanceOf(test_strategy) < shares_before
 
 def test_vault_ratio_calculation_on_very_high_withdraw(
-    dai, dai_whale, vault, wsteth, steth, test_strategy, token, yvault, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
+    dai, dai_whale, vault, test_strategy, token, yvault, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
 ):
     # Initial ratio is 0 because there is no collateral locked
     assert test_strategy.getCurrentMakerVaultRatio() == 0
@@ -700,7 +700,7 @@ def test_vault_ratio_calculation_on_very_high_withdraw(
     assert yvault.balanceOf(test_strategy) < shares_before
 
 def test_vault_ratio_calculation_on_almost_total_withdraw(
-    dai, dai_whale, vault, router, wsteth, steth, test_strategy, token, yvault, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
+    dai, dai_whale, vault, router,  test_strategy, token, yvault, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
 ):
     # Initial ratio is 0 because there is no collateral locked
     assert test_strategy.getCurrentMakerVaultRatio() == 0
@@ -734,7 +734,7 @@ def test_vault_ratio_calculation_on_almost_total_withdraw(
 
 
 def test_vault_ratio_calculation_on_total_withdraw(
-    dai, dai_whale, token_whale, vault, wsteth, steth, test_strategy, token, yvault, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
+    dai, dai_whale, token_whale, vault, test_strategy, token, yvault, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
 ):
     # Initial ratio is 0 because there is no collateral locked
     assert test_strategy.getCurrentMakerVaultRatio() == 0
@@ -769,7 +769,7 @@ def test_vault_ratio_calculation_on_total_withdraw(
 
 
 def test_vault_ratio_calculation_on_sandwiched_total_withdraw(
-    token_whale, vault, wsteth, steth, test_strategy, token, yvault, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
+    token_whale, vault,  test_strategy, token, yvault, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
 ):
     # Initial ratio is 0 because there is no collateral locked
     assert test_strategy.getCurrentMakerVaultRatio() == 0

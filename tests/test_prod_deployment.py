@@ -5,10 +5,11 @@ from eth_abi import encode_single
 
 
 def test_prod(
-    yvault, healthCheck, productionVault, yieldBearingToken, weth, dai, strategist, weth_whale, dai_whale, MakerDaiDelegateClonerChoice, Strategy, price_oracle_want_to_eth, ilk_want, ilk_yieldBearing, osmProxy_want, osmProxy_yieldBearing, gemJoinAdapter
+    yvault, healthCheck, productionVault, yieldBearing, token, weth, dai, strategist, token_whale, dai_whale, MakerDaiDelegateClonerChoice, Strategy, price_oracle_want_to_eth, ilk_want, ilk_yieldBearing, osmProxy_want, osmProxy_yieldBearing, gemJoinAdapter
 ):
 #yvWETH vault:
     vault = productionVault
+    #vault = vault.from_explorer(vault.address)
     gov = vault.governance()
  #   yvault = Contract("0xdA816459F1AB5631232FE5e97a05BBBb94970c95")
 #    gemJoinAdapter = Contract("0xF04a5cC80B1E94C69B48f5ee68a08CD2F09A7c3E")
@@ -20,7 +21,7 @@ def test_prod(
         vault,
         yvault,
         "Strategy",
-        #f"Strategy-Maker-lev-{yieldBearingToken.symbol()}",
+        #f"Strategy-Maker-lev-{yieldBearing.symbol()}",
         #"0x4554482d43000000000000000000000000000000000000000000000000000000",  # ETH-C
         #ilk_want,
         #ilk_yieldBearing,
@@ -51,10 +52,12 @@ def test_prod(
 
     vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 0, {"from": gov})
     strategy.updateMaxSingleTrade(1e40, {"from": gov})
-    weth.approve(vault, 2 ** 256 - 1, {"from": weth_whale})
-    vault.deposit(250 * (10 ** weth.decimals()), {"from": weth_whale})
+    token.approve(vault, 2 ** 256 - 1, {"from": token_whale})
+    vault.deposit(250 * (10 ** token.decimals()), {"from": token_whale})
 
-    strategy.harvest({"from": gov})
+    tx1 = strategy.harvest({"from": gov})
+    tx1.wait(1)
+    time.sleep(1)
     assert yvault.balanceOf(strategy) > 0
 
     print(f"After first harvest")
@@ -72,7 +75,9 @@ def test_prod(
     dai.transfer(yvault, yvault.totalAssets()*0.8, {"from": dai_whale})
     #dai.transfer(yvault, "1000 ether", {"from": dai_whale})
     #strategy.setLeaveDebtBehind(False, {"from": gov})
-    tx = strategy.harvest({"from": gov})
+    tx2 = strategy.harvest({"from": gov})
+    tx2.wait(1) 
+    time.sleep(1)
     assert vault.strategies(strategy).dict()["totalLoss"] == 0
     print(f"After second harvest")
     print(f"strat estimatedTotalAssets: {strategy.estimatedTotalAssets()/1e18:_}")
