@@ -10,7 +10,6 @@ import "../interfaces/yearn/IOSMedianizer.sol";
 contract TestStrategy is Strategy {
     constructor(
         address _vault,
-        address _yVault,
         string memory _strategyName
 //        bytes32 _ilk_want,
 //        bytes32 _ilk_yieldBearing,
@@ -22,7 +21,6 @@ contract TestStrategy is Strategy {
         public
         Strategy(
             _vault,
-            _yVault,
             _strategyName
 //            _ilk_want,
 //            _ilk_yieldBearing,
@@ -32,36 +30,26 @@ contract TestStrategy is Strategy {
 //            _chainlinkWantToETHPriceFeed
         )
     {}
-
+/*
     function _liquidatePosition(uint256 _amountNeeded)
         public
         returns (uint256 _liquidatedAmount, uint256 _loss)
     {
         (_liquidatedAmount, _loss) = liquidatePosition(_amountNeeded);
     }
+*/
 /*
     function _getWantPrice() public view returns (uint256) {
         return getWantPerYieldBearing();
     }
 */
-
+/*
     function _getYieldBearingPrice() public view returns (uint256) {
         return getWantPerYieldBearing();
     }
-/*
 
-    function _getYieldBearingUSDPriceYo() public view returns (uint256) {
-        return _getYieldBearingUSDPrice();
     }
 
-    function _convertWantAmountToYieldBearingWithL(uint256 _amount) public view returns (uint256){
-        return _convertWantAmountToYieldBearingWithLosses(_amount);
-    }
-
-
-    function _getCurrentMakerVaultRatio() public view returns (uint256) {
-        return getCurrentMakerVaultRatio();
-    }
 
 */
 /*

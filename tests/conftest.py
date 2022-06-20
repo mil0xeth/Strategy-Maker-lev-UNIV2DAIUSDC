@@ -1,25 +1,6 @@
 import pytest
 from brownie import config, convert, interface, Contract
 ##################
-#Notes: Reamining issues:
-#0.: withdraw doesn't adjust coll ratio
-#0.: why is uniswap still a problem? has correct settings
-#1.: update form 0.6.12 solidity version to include uniswapv3?
-#0.: _swap functions in MakerDaiDelegateLib access 
-#0.: harvestTrigger NOT behaving as it should, usually True (solve with isCurrentBasefeeAcceptable OR minReportDelay) even while tendTrigger is true
-#0.: ProfitLimitRatio / LossLimitRatio clear up: healthCheck set to profit 50%, loss 1%
-#0.: test_debt_ratio has a healthcheck issue, even though the loss is not greater than 0.6%, requires losslimitratio of sometimes 70%, sometimes 90%. odd.
-#Maybe because remaining loss is of the size of the entire position? Percentages then apply to the size of the positiion. How to fix?
-#1.: MakerDaiDelegateLib functions decisions: external/internal etc.
-#1.: OSMProxy for wstETH not implemented, still OSMProxy for ETH integrated
-#4.: Remove SIZE OPTIMISATION
-#5.: Referal: Functions, YieldBearing setFunction? Constructor, why initializeThis?
-#6.: Why is the original _checkAllowance setting first allowance to zero, then to max? Why not immediately to max?
-#8.: WANT token other than ETH or WETH need to enable chainlinkWantToETHPriceFeed
-#9.: Disabled use of OSM Proxy for Want / Disabled use of OSM Proxy for yieldBearing (doesn't exist) 
-#11.: maxSingleTrade implementation
-#12.: Awaiting Flash in MakerDaiDelegateLib doAaveFlashloan ENABLE
-#16.: awaitingFlash with AAVE Flashloan variable include
 #################
 #Decide on Strategy Contract
 @pytest.fixture(autouse=True)
@@ -84,10 +65,6 @@ def borrow_token(dai):
 def borrow_whale(dai_whale):
     yield dai_whale
  
-@pytest.fixture
-def yvault(yvDAI):
-    yield yvDAI
-
 #chainlinkWantToETHPriceFeed
 @pytest.fixture
 def price_oracle_want_to_eth(wantNr):
@@ -104,6 +81,12 @@ def price_oracle_want_to_eth(wantNr):
 def weth():
     token_address = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" #WETH
     yield Contract(token_address)   
+
+@pytest.fixture
+def weth_amout(user, weth):
+    weth_amout = 10 ** weth.decimals()
+    user.transfer(weth, weth_amout)
+    yield weth_amout
 
 @pytest.fixture
 def guniv3daiusdc1():
@@ -243,7 +226,7 @@ def unirouter():
 
 @pytest.fixture
 def amount(accounts, token, user, token_whale):
-    amount = 50 * 10 ** token.decimals()
+    amount = 50000 * 10 ** token.decimals()
     # In order to get some funds for the token you are about to use,
     # it impersonate an exchange address to use it's funds.
     reserve = token_whale
@@ -253,7 +236,7 @@ def amount(accounts, token, user, token_whale):
 
 @pytest.fixture
 def amount2(accounts, token, user2, token_whale):
-    amount = 1000 * 10 ** token.decimals()
+    amount = 100000 * 10 ** token.decimals()
     # In order to get some funds for the token you are about to use,
     # it impersonate an exchange address to use it's funds.
     #reserve = accounts.at("0xF977814e90dA44bFA03b6295A0616a897441aceC", force=True)
@@ -264,7 +247,7 @@ def amount2(accounts, token, user2, token_whale):
 @pytest.fixture
 def amountBIGTIME(accounts, token, user, token_whale):
     #amount = 20000 * 10 ** token.decimals()
-    amount = 100000 * 10 ** token.decimals()
+    amount = 200000 * 10 ** token.decimals()
     # In order to get some funds for the token you are about to use,
     # it impersonate an exchange address to use it's funds.
     #reserve = accounts.at("0xF977814e90dA44bFA03b6295A0616a897441aceC", force=True)
@@ -302,21 +285,6 @@ def productionVault(wantNr):
     ]
     yield Contract(vault_address[wantNr])
 
-@pytest.fixture
-def new_dai_yvault(pm, gov, rewards, guardian, management, dai):
-    Vault = pm(config["dependencies"][0]).Vault
-    vault = guardian.deploy(Vault)
-    vault.initialize(dai, gov, rewards, "", "", guardian, management)
-    vault.setDepositLimit(2 ** 256 - 1, {"from": gov})
-    vault.setManagement(management, {"from": gov})
-    yield vault
-
-@pytest.fixture
-def new_full_dai_yvault(pm, gov, rewards, guardian, management, dai, new_dai_yvault, dai_whale):
-    yvDAI = new_dai_yvault
-    dai.approve(yvDAI.address, "500_000 ether", {"from": dai_whale})
-    yvDAI.deposit("500_000 ether", {"from": dai_whale})
-    yield yvDAI
 
 @pytest.fixture
 def osmProxy_want():
@@ -391,7 +359,6 @@ def test_strategy(
     TestStrategyChoice,
     strategist,
     vault,
-    yvault,
     token,
     yieldBearing,
     gemJoinAdapter,
@@ -403,7 +370,6 @@ def test_strategy(
     strategy = strategist.deploy(
         TestStrategyChoice,
         vault,
-        yvault,
         "Strategy-Maker-lev-GUNIV3DAIUSDC",
         #ilk_want,
         #ilk_yieldBearing,
@@ -481,7 +447,6 @@ def RELATIVE_APPROX_ROUGH():
 def cloner(
     strategist,
     vault,
-    yvault,
     token,
     yieldBearing,
     gemJoinAdapter,
@@ -494,7 +459,6 @@ def cloner(
     cloner = strategist.deploy(
         MakerDaiDelegateClonerChoice,
         vault,
-        yvault,
         "Strategy-Maker-lev-GUNIV3DAIUSDC",
         #ilk_want,
         #ilk_yieldBearing,

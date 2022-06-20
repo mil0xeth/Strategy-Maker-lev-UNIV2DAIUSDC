@@ -8,10 +8,6 @@ import "@openzeppelin/contracts/math/Math.sol";
 import "../../interfaces/maker/IMaker.sol";
 import "../../interfaces/GUNI/GUniPool.sol";
 
-//AMM Interface:
-//import "../../interfaces/swap/ISwapRouter.sol";
-import "../../interfaces/swap/ISwap.sol";
-
 import {
     SafeERC20,
     SafeMath,
@@ -21,39 +17,80 @@ import {
 
 
 //DYDX FLashloan
-import "../../interfaces/DyDx/ISoloMargin.sol";
-//import "../../interfaces/DyDx/DydxFlashLoanBase.sol";
-//import "../../interfaces/DyDx/ICallee.sol";
+//import "../../interfaces/DyDx/ISoloMargin.sol";
 
 //OSM
 import "../../interfaces/yearn/IOSMedianizer.sol";
+
+interface PSMLike {
+    function gemJoin() external view returns (address);
+    function sellGem(address usr, uint256 gemAmt) external;
+    function buyGem(address usr, uint256 gemAmt) external;
+}
+
+interface IERC3156FlashLender {
+    function maxFlashLoan(
+        address token
+    ) external view returns (uint256);
+    function flashFee(
+        address token,
+        uint256 amount
+    ) external view returns (uint256);
+    function flashLoan(
+        //IERC3156FlashBorrower receiver,
+        address receiver,
+        address token,
+        uint256 amount,
+        bytes calldata data
+    ) external returns (bool);
+}
+
+interface IERC3156FlashBorrower {
+    function onFlashLoan(
+        address initiator,
+        address token,
+        uint256 amount,
+        uint256 fee,
+        bytes calldata data
+    ) external returns (bytes32);
+}
 
 library MakerDaiDelegateLib {
     using SafeERC20 for IERC20;
     using Address for address;
     using SafeMath for uint256;
 
-    event DebugDelegate(uint256 _number, uint _value);
+    //event DebugDelegate(uint256 _number, uint _value);
 
+    enum Action {WIND, UNWIND}
+
+    //uint256 public constant otherTokenTo18Conversion = 10 ** (18 - _otherToken.decimals());
     //Strategy specific addresses:
     //dai:
     IERC20 internal constant want = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
-    IERC20 internal constant partnerToken = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
+    IERC20 internal constant otherToken = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
+    uint256 public constant otherTokenTo18Conversion = 10 ** 12;
     //usdc:
     //IERC20 internal constant want = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
-    //IERC20 internal constant partnerToken = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
+    //IERC20 internal constant otherToken = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
+    //uint256 public constant otherTokenTo18Conversion = 1;
 
     //GUNIDAIUSDC1 - Gelato Uniswap DAI/USDC LP - 0.05% fee
     GUniPool internal constant yieldBearing = GUniPool(0xAbDDAfB225e10B90D798bB8A886238Fb835e2053);
     bytes32 internal constant ilk_yieldBearing = 0x47554e49563344414955534443312d4100000000000000000000000000000000;
-    address internal constant gemJoinFlash = 0xbFD445A97e7459b0eBb34cfbd3245750Dba4d7a4;
+    address internal constant gemJoinAdapter = 0xbFD445A97e7459b0eBb34cfbd3245750Dba4d7a4;
     
     //GUNIDAIUSDC2 - Gelato Uniswap DAI/USDC2 LP 2 - 0.01% fee
     //GUniPool internal constant yieldBearing = GUniPool(0x50379f632ca68D36E50cfBC8F78fe16bd1499d1e);
     //bytes32 internal constant ilk_yieldBearing = 0x47554e49563344414955534443322d4100000000000000000000000000000000;
-    //address internal constant gemJoinFlash = 0xA7e4dDde3cBcEf122851A7C8F7A55f23c0Daf335;
+    //address internal constant gemJoinAdapter = 0xA7e4dDde3cBcEf122851A7C8F7A55f23c0Daf335;
+
+    PSMLike public constant psm = PSMLike(0x89B78CfA322F6C5dE0aBcEecab66Aee45393cC5A) ;
 
     IERC20 internal constant investmentToken = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
+
+    //MAKER Flashmint:
+    IERC3156FlashLender public constant flashmint = IERC3156FlashLender(0x1EB4CF3A948E7D72A198fe073cCb8C7a948cD853);
 
     //DYDX Flashloan
     address private constant SOLO = 0x1E0447b19BB6EcFdAe1e4AE1694b0C3659614e4e;
@@ -108,7 +145,6 @@ library MakerDaiDelegateLib {
     }
 
     // Deposits collateral (gem) and mints DAI
-    // Adapted from https://github.com/makerdao/dss-proxy-actions/blob/master/src/DssProxyActions.sol#L639
     function lockGemAndDraw(
         address gemJoin,
         uint256 cdpId,
@@ -147,7 +183,6 @@ library MakerDaiDelegateLib {
     }
 
     // Returns DAI to decrease debt and attempts to unlock any amount of collateral
-    // Adapted from https://github.com/makerdao/dss-proxy-actions/blob/master/src/DssProxyActions.sol#L758
     function wipeAndFreeGem(
         address gemJoin,
         uint256 cdpId,
@@ -234,7 +269,7 @@ library MakerDaiDelegateLib {
         (, uint256 liquidationRatio) = spotter.ilks(ilk);
         return liquidationRatio;
     }
-
+    /*
     function getIlkOSMPrice(bytes32 _ilk, address _OSMProxyAddress) public view returns (uint256) {
         IOSMedianizer OSMProxy = IOSMedianizer(_OSMProxyAddress);
         // Use price from spotter as base
@@ -268,7 +303,7 @@ library MakerDaiDelegateLib {
         return minPrice.mul(RAY).div(getDaiPar());
         //return minPrice;
     }
-
+    */
 
     function getSpotPrice(bytes32 ilk) public view returns (uint256) {
         VatLike vat = VatLike(manager.vat());
@@ -431,156 +466,114 @@ library MakerDaiDelegateLib {
         wad = amt.mul(10**(18 - GemJoinLike(gemJoin).dec()));
     }
 
-
-    //FLASHLOAN:
-    function initiateFlashLoan(uint256 _totalRepayAmount, uint256 cdpIdFlash) public {
-        emit DebugDelegate(1234, _totalRepayAmount);
-        emit DebugDelegate(11108, balanceOfInvestmentToken());
-        IERC20 token = investmentToken;
-        address _token = address(investmentToken);
-        uint256 currentDebt = debtForCdp(cdpIdFlash, ilk_yieldBearing).add(1);
-        uint256 payWithFlashloan = _totalRepayAmount - Math.min(balanceOfInvestmentToken(), _totalRepayAmount);
-        emit DebugDelegate(11109, payWithFlashloan);
-        //If entire debt can be paid off with investment tokens in wallet
-        if (currentDebt == _totalRepayAmount && payWithFlashloan == 0) {
-            _checkAllowance(daiJoinAddress(), _token, currentDebt);
-            wipeAndFreeGem(gemJoinFlash, cdpIdFlash, balanceOfCdp(cdpIdFlash, ilk_yieldBearing), currentDebt);
+    function wind(
+        uint256 wantAmountInitial,
+        uint256 collateralizationRatio,
+        uint256 cdpId
+    ) external {
+        wantAmountInitial = Math.min(wantAmountInitial, balanceOfWant());
+        //Calculate how much investmentToken to mint to leverage up to collateralization ratio:
+        uint256 flashloanAmount = wantAmountInitial.mul(RAY).div(collateralizationRatio.mul(1e9).sub(RAY));
+        //Check if amount of dai to borrow is above debtFloor
+        if ( (debtForCdp(cdpId, ilk_yieldBearing).add(flashloanAmount)) <= debtFloor(ilk_yieldBearing).add(1e15)){
             return;
         }
-
-        if (payWithFlashloan < 1e17) {
-            // if above 0, but below 0.1 DAI, set minimum to 0.1 DAI 
-            payWithFlashloan = 1e17;
+        bytes memory data = abi.encode(Action.WIND, cdpId, wantAmountInitial, flashloanAmount, collateralizationRatio); 
+        initFlashLoan(data, flashloanAmount);
+    }
+    
+    function unwind(
+        uint256 wantAmountRequested,
+        uint256 collateralizationRatio,
+        uint256 cdpId
+    ) external {
+        if (balanceOfCdp(cdpId, ilk_yieldBearing) == 0){
+            return;
         }
-        emit DebugDelegate(11110, payWithFlashloan);        
-
-        //---------------------------
-        //DYDX
-        //--------------------------
-        uint256 amountInSolo = token.balanceOf(SOLO);
-        // DYDX
-        ISoloMargin solo = ISoloMargin(SOLO);
-        uint256 numMarkets = solo.getNumMarkets();
-        //dyDxMarketID for DAI is 3.
-        uint256 dyDxMarketId = 3;
-
-        _checkAllowance(address(SOLO), _token, payWithFlashloan);
-        payWithFlashloan = Math.min(amountInSolo, payWithFlashloan);
-        bytes memory data = abi.encode(payWithFlashloan, payWithFlashloan.add(2)); // we need to overcollateralise on way back
-
-        // 1. Withdraw $
-        // 2. Call callFunction(...)
-        // 3. Deposit back $
-        Actions.ActionArgs[] memory operations = new Actions.ActionArgs[](3);
-
-        operations[0] = _getWithdrawAction(dyDxMarketId, payWithFlashloan);
-        operations[1] = _getCallAction(data);
-        operations[2] = _getDepositAction(dyDxMarketId, payWithFlashloan.add(2));
-
-        Account.Info[] memory accountInfos = new Account.Info[](1);
-        accountInfos[0] = _getAccountInfo();
-
-        solo.operate(accountInfos, operations);
-        emit DebugDelegate(11115, payWithFlashloan);
+        //Paying off the full debt it's common to experience Vat/dust reverts: we circumvent this with add 1 Wei to the amount to be paid
+        uint256 flashloanAmount = debtForCdp(cdpId, ilk_yieldBearing).add(1);
+        bytes memory data = abi.encode(Action.UNWIND, cdpId, wantAmountRequested, flashloanAmount, collateralizationRatio);
+        //Always flashloan entire debt to pay off entire debt:
+        initFlashLoan(data, flashloanAmount);
     }
 
-    //Flashloan Pool calls this function after doing flash loan
-    function executeFlashloan(
-        uint256 _flashloanAmount,
-        uint256 _fee,
-        uint256 cdpIdFlash,
-        ISwap router,
-        uint256 _totalRepayAmount
-    ) external {
-        if (_flashloanAmount == 0) {
+    function initFlashLoan(bytes memory data, uint256 amount) internal {
+        //DYDX Flashloan implementation for testing purposes - flashmint works flawlessly, but induces event scoping issues during debugging in brownie
+        /*
+        bool useDYDX = true;
+        if (useDYDX == true) {
+            uint256 amountInSolo = investmentToken.balanceOf(SOLO);
+            ISoloMargin solo = ISoloMargin(SOLO);
+            uint256 numMarkets = solo.getNumMarkets();
+            //dyDxMarketID for DAI is 3.
+            uint256 dyDxMarketId = 3;
+            _checkAllowance(address(SOLO), address(investmentToken), amount);
+            require(amountInSolo >= amount, "NOT ENOUGH FUNDS IN SOLO");
+            Actions.ActionArgs[] memory operations = new Actions.ActionArgs[](3);
+            operations[0] = _getWithdrawAction(dyDxMarketId, amount);
+            operations[1] = _getCallAction(data);
+            operations[2] = _getDepositAction(dyDxMarketId, amount.add(2));
+            Account.Info[] memory accountInfos = new Account.Info[](1);
+            accountInfos[0] = _getAccountInfo();
+            solo.operate(accountInfos, operations);
             return;
         }
-        address investmentTokenAdd = address(investmentToken);
-        address wantAdd = address(want);
-        address yieldBearingAdd = address(yieldBearing);
-
-        //calculate how much is _totalRepayAmount
-        uint256 repayAmount = _flashloanAmount.add(_fee);
-        //How much yieldBearing it takes to buy enough investmentToken through curve 
-        uint256 curveroute = 1;
-        /*
-        uint256 curveroute =             
-            yieldBearing.getWstETHByStETH(
-                StableSwapSTETH.get_dy(0, 1, 
-                router.getAmountsIn(repayAmount, 
-                    getTokenOutPath(wantAdd, investmentTokenAdd))[0]
-                ));
         */
-        
-        /* //test method for UniswapV3 implementation:
-        uint wantPrice = getSpotPrice(ilk_want).mul(RAY).div(getDaiPar());
-        uint256 curveroute = 
-            yieldBearing.getWstETHByStETH(
-                StableSwapSTETH.get_dy(0, 1, 
-                //repayAmount.div(getSpotPrice(ilk_want)))
-                repayAmount.div(wantPrice))
-                );
-        */
-        //Account for slippage through the curve route
-        //uint256 slippageProtection = address(this).slippageProtection;
-        uint256 slippageProtection = 100;
-        curveroute = curveroute.mul(10000 + slippageProtection).div(10000).add(1);
-        uint256 repayAmountInYieldBearing = curveroute;
-        
-        //DEBT WITHDRAWAL:
-        uint256 currentDebt = debtForCdp(cdpIdFlash, ilk_yieldBearing).add(1);
-        //_totalRepayAmount not more than current total debt, collateral withdrawal not more than total collateral
-        _totalRepayAmount = Math.min(_totalRepayAmount, currentDebt);
-        repayAmountInYieldBearing = Math.min(repayAmountInYieldBearing, balanceOfCdp(cdpIdFlash, ilk_yieldBearing));
+        //Flashmint implementation:
+        _checkAllowance(address(flashmint), address(investmentToken), amount);
+        flashmint.flashLoan(address(this), address(investmentToken), amount, data);
+    }
 
-        //if the remaining debt is below the debtFloor & retainDebtFloor == false --> pay off full debt
-        //if the remaining debt is below the debtFloor & retainDebtFloor == true --> pay off only until debtFloor+1e
-        //debtFloor.add(1e15)
-        //30k debt - 30k repay = 0 < debtFloor --> total repay = full debt = 15k1
-        //30k debt - 20k repay = 10k < debtFloor --> total repay = full debt = 15k1
-        //30k debt - 15k repay = 15k < debtFloor --> total repay = full debt = 15k1
-        if ( (currentDebt - _totalRepayAmount) <= debtFloor(ilk_yieldBearing).add(1e15)){
-            _totalRepayAmount = currentDebt;
-        }
-        //if full debt is repaid: unlock collateral
-        if (_totalRepayAmount == currentDebt){
-            repayAmountInYieldBearing = balanceOfCdp(cdpIdFlash, ilk_yieldBearing);
-        }
-
-        _checkAllowance(daiJoinAddress(), investmentTokenAdd, currentDebt);
-        _totalRepayAmount = Math.min(_totalRepayAmount, balanceOfInvestmentToken());
-        wipeAndFreeGem(gemJoinFlash, cdpIdFlash, repayAmountInYieldBearing, _totalRepayAmount);        
-        //--- MAKER DEBT REPAID & YIELD BEARING UNLOCKED!
-
-        //--- SWAPS FOR FLASHLOAN REPAYMENT
-        _swapYieldBearingToWant(curveroute, 50); //100 = 1%
-
-        //UniswapV2 implementation for swapping want to investmentToken to repay Flashloan
-        _checkAllowance(address(router), wantAdd, repayAmount);
-        router.swapTokensForExactTokens(
-            repayAmount,
-            type(uint256).max,
-            //getTokenOutPath(yieldBearingAdd, investmentTokenAdd),
-            getTokenOutPath(wantAdd, investmentTokenAdd),
-            address(this),
-            now
+    function _wind(uint256 cdpId, uint256 flashloanRepayAmount, uint256 wantAmountInitial, uint256 collateralizationRatio) internal {
+        //repayAmount includes any fees
+        uint256 yieldBearingAmountToLock = _swapWantToYieldBearing(balanceOfWant());
+        //Check allowance to lock collateral 
+        _checkAllowance(gemJoinAdapter, address(yieldBearing), yieldBearingAmountToLock);
+        //Lock collateral and borrow dai to repay flashmint
+        lockGemAndDraw(
+            gemJoinAdapter,
+            cdpId,
+            yieldBearingAmountToLock,
+            flashloanRepayAmount,
+            debtForCdp(cdpId, ilk_yieldBearing)
         );
-        /* //UniswapV3 implementation for swapping want to investmentToken to repay Flashloan
-        _checkAllowance(address(router), wantAdd, repayAmount);
-        ISwapRouter.ExactOutputSingleParams memory params =
-            ISwapRouter.ExactOutputSingleParams({
-                tokenIn: wantAdd,
-                tokenOut: investmentTokenAdd,
-                fee: 500,
-                recipient: address(this),
-                deadline: block.timestamp,
-                amountOut: repayAmount,
-                amountInMaximum: type(uint256).max,
-                sqrtPriceLimitX96: 0
-            });
-        router.exactOutputSingle(params);
-        */
-        //PAYBACK: DYDX    
+    }
+
+    function _unwind(uint256 cdpId, uint256 flashloanRepayAmount, uint256 wantAmountRequested, uint256 collateralizationRatio) internal {
+        //Repay entire debt, to then take debt again later:
+        //Check allowance for repaying investmentToken Debt
+        uint256 currentDebtPlusRounding = debtForCdp(cdpId, ilk_yieldBearing).add(1);
+        _checkAllowance(daiJoinAddress(), address(investmentToken), currentDebtPlusRounding);
+        wipeAndFreeGem(gemJoinAdapter, cdpId, balanceOfCdp(cdpId, ilk_yieldBearing), currentDebtPlusRounding);
+        //All debt paid down, collateral unlocked
+        //Calculate leverage+1 to know how much totalRequestedInYieldBearing to swap for investmentToken
+        uint256 leveragePlusOne = (RAY.mul(WAD).div((collateralizationRatio.mul(1e9).sub(RAY)))).add(WAD);
+        uint256 totalRequestedInYieldBearing = wantAmountRequested.mul(leveragePlusOne).div(getWantPerYieldBearing());
+
+        _swapYieldBearingToWant(totalRequestedInYieldBearing);
+        //Want amount requested now in wallet
+
+        //Lock collateral and borrow dai equivalent to amount given by collateralizationRatio:
+        uint256 yieldBearingBalance = balanceOfYieldBearing();
+        uint256 investmentTokenAmountToMint = yieldBearingBalance.mul(getWantPerYieldBearing()).div(collateralizationRatio);
+        //Check if amount of dai to borrow is above debtFloor. If not, swap everything to want and return.
+        if ( investmentTokenAmountToMint <= debtFloor(ilk_yieldBearing).add(1e15)){
+            _swapYieldBearingToWant(balanceOfYieldBearing());
+            return;
+        }
+
+        //Check allowance to lock collateral 
+        _checkAllowance(gemJoinAdapter, address(yieldBearing), yieldBearingBalance);
+        //Lock collateral and mint dai to repay flashmint
+        lockGemAndDraw(
+            gemJoinAdapter,
+            cdpId,
+            yieldBearingBalance,
+            investmentTokenAmountToMint,
+            debtForCdp(cdpId, ilk_yieldBearing)
+        );
+        //want=dai: nothing further necessary
+
     }
 
     function getTokenOutPath(address _token_in, address _token_out)
@@ -604,79 +597,64 @@ library MakerDaiDelegateLib {
         }
     }
 
-    function _swapInvestmentTokenToWant(uint256 _amount, ISwap _router) external returns (uint256) {
-        if (_amount < 1000) {
-            return 0;
-        }
-        //want=dai:
-        return _amount;
-        //want=usdc:
-    /*
-        _checkAllowance(address(_router), address(investmentToken), _amount);
-        return _router.swapExactTokensForTokens(
-            _amount,
-            0,
-            getTokenOutPath(address(investmentToken), address(want)),
-            address(this),
-            now
-        )[1];
-        //the [1] value of the array is the out value of the out token (want) of the swap
-    */
-    }
-
-    function _swapWantToYieldBearing(uint256 _amount, address _referal) external returns (uint256) {
+    function _swapWantToYieldBearing(uint256 _amount) internal returns (uint256) {
         if (_amount == 0) {
             return 0;
         }
-        ISwap _router = ISwap(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
-        (uint256 wantRatio, uint256 partnerTokenRatio) = yieldBearing.getUnderlyingBalances();
-        wantRatio = wantRatio*WAD/yieldBearing.totalSupply()/WAD;
-        partnerTokenRatio = partnerTokenRatio*WAD*1e12/yieldBearing.totalSupply()/WAD;
-        uint256 wantAmountForMint = _amount * wantRatio / (wantRatio + partnerTokenRatio);
-        uint256 wantAmountToSwapToPartnerTokenForMint = _amount * partnerTokenRatio / (wantRatio + partnerTokenRatio);
-        //swap want to partnerToken:
-        _checkAllowance(address(_router), address(investmentToken), wantAmountToSwapToPartnerTokenForMint);
-        _router.swapExactTokensForTokens(
-            wantAmountToSwapToPartnerTokenForMint,
-            0,
-            getTokenOutPath(address(want), address(partnerToken)),
-            address(this),
-            now
-        );
-        wantAmountForMint = Math.min(wantAmountForMint, want.balanceOf(address(this)));
-        uint256 partnerTokenAmountForMint = partnerToken.balanceOf(address(this)); 
+        _amount = Math.min(_amount, balanceOfWant());
+        (uint256 wantRatio, uint256 otherTokenRatio) = yieldBearing.getUnderlyingBalances();
+        wantRatio = wantRatio.mul(WAD).div(yieldBearing.totalSupply());
+        otherTokenRatio = otherTokenRatio.mul(WAD).mul(otherTokenTo18Conversion).div(yieldBearing.totalSupply());
+        uint256 wantAmountForMint = _amount.mul(wantRatio).div(wantRatio + otherTokenRatio);
+        uint256 wantAmountToSwapToOtherTokenForMint = _amount.mul(otherTokenRatio).div(wantRatio + otherTokenRatio);
+        //Swap through PSM wantAmountToSwapToOtherTokenForMint --> otherToken
+        _checkAllowance(address(psm), address(want), wantAmountToSwapToOtherTokenForMint);
+        psm.buyGem(address(this), wantAmountToSwapToOtherTokenForMint.div(otherTokenTo18Conversion));
+        
+        //Mint yieldBearing:
+        wantAmountForMint = Math.min(wantAmountForMint, balanceOfWant());
+        uint256 otherTokenBalance = balanceOfOtherToken();
         _checkAllowance(address(yieldBearing), address(want), wantAmountForMint);
-        _checkAllowance(address(yieldBearing), address(partnerToken), partnerTokenAmountForMint);      
-        (,,uint256 mintAmount) = yieldBearing.getMintAmounts(wantAmountForMint, partnerTokenAmountForMint); 
+        _checkAllowance(address(yieldBearing), address(otherToken), otherTokenBalance);      
+        (,,uint256 mintAmount) = yieldBearing.getMintAmounts(wantAmountForMint, otherTokenBalance); 
         yieldBearing.mint(mintAmount, address(this));
         return balanceOfYieldBearing();
     }
 
-    function _swapYieldBearingToWant(uint256 _amount, uint256 _slippageProtection) public {
+    function _swapYieldBearingToWant(uint256 _amount) internal {
         if (_amount == 0) {
             return;
         }
-        ISwap _router = ISwap(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
+        //Burn the yieldBearing token to unlock DAI and USDC:
         yieldBearing.burn(Math.min(_amount, balanceOfYieldBearing()), address(this));
-        uint256 partnerTokenBalance = balanceOfPartnerToken();
-        _checkAllowance(address(_router), address(partnerToken), partnerTokenBalance);
-        _router.swapExactTokensForTokens(
-            partnerTokenBalance,
-            0,
-            getTokenOutPath(address(partnerToken), address(want)),
-            address(this),
-            now
-        );
+        
+        //Amount of otherToken after burning:
+        uint256 otherTokenBalance = balanceOfOtherToken();
+
+        //Swap through PSM otherToken ---> Want:
+        address psmGemJoin = psm.gemJoin();
+        _checkAllowance(psmGemJoin, address(otherToken), otherTokenBalance);
+        psm.sellGem(address(this), otherTokenBalance);
+    }
+
+    function balanceOfWant() public view returns (uint256) {
+        return want.balanceOf(address(this));
     }
 
     function balanceOfYieldBearing() public view returns (uint256) {
         return yieldBearing.balanceOf(address(this));
     }
 
-    function balanceOfPartnerToken() public view returns (uint256) {
-        return partnerToken.balanceOf(address(this));
+    function balanceOfOtherToken() public view returns (uint256) {
+        return otherToken.balanceOf(address(this));
     }
 
+    /*
+    //want=usdc
+    function balanceOfInvestmentToken() public view returns (uint256) {
+        return investmentToken.balanceOf(address(this));
+    }
+    //DYDX requires a minimum of a few wei to use Flashloan for investmentToken. Create 1000 wei floor of investmentToken to allow flashloan anytime:
     function balanceOfInvestmentToken() public view returns (uint256) {
         uint256 tokenBalance = investmentToken.balanceOf(address(this));
         if (tokenBalance > 1000) {
@@ -686,10 +664,17 @@ library MakerDaiDelegateLib {
         }
         return tokenBalance;
     }
+    */
 
+    //get amount of Want in Wei that is received for 1 yieldBearing
+    function getWantPerYieldBearing() public view returns (uint256){
+        (uint256 wantUnderlyingBalance, uint256 otherTokenUnderlyingBalance) = yieldBearing.getUnderlyingBalances();
+        return (wantUnderlyingBalance.mul(WAD).add(otherTokenUnderlyingBalance.mul(WAD).mul(WAD).div(1e6))).div(yieldBearing.totalSupply());
+    }
 
 
     //DYDX FlashLoanBase:
+    /*
     function _getAccountInfo() internal view returns (Account.Info memory) {
         return Account.Info({owner: address(this), number: 1});
     }
@@ -745,11 +730,7 @@ library MakerDaiDelegateLib {
                 data: ""
             });
     }
-
-
-
-
-
+    */
 
 
 

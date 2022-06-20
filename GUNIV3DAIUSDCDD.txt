@@ -45,6 +45,8 @@ from brownie import interface
 MINT:
 
 yieldBearing = interface.GUniPool("0xAbDDAfB225e10B90D798bB8A886238Fb835e2053")
+
+yieldBearing = Contract("0xAbDDAfB225e10B90D798bB8A886238Fb835e2053")
 this = accounts.at("0x47ac0fb4f2d84898e4d9e7b4dab3c24507a6d503", force=True)
 dai = Contract("0x6B175474E89094C44Da98b954EedeAC495271d0F")
 usdc = Contract("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
@@ -54,7 +56,7 @@ yieldBearing.mint("1000 ether", this, {'from': this})
 yieldBearing.balanceOf(this)/1e18
 
 BURN:
-yieldBearing.
+yieldBearing.burn(1000e18, this, {"from": this})
 
 
 getUnderlyingBalances[0] = dai
@@ -62,6 +64,12 @@ getUnderlyingBalances[1] = usdc
 
 (yieldBearing.getUnderlyingBalances()[0]/1e18+yieldBearing.getUnderlyingBalances()[1]/1e6)/(yieldBearing.totalSupply()/1e18)*1000
 ---> ratio gives price of GUNI in dollars
+
+
+PSM:
+//DAI-->USDC:
+want.approve(psm, token.balanceOf(noob), {"from": noob})
+psm.buyGem(noob, token.balanceOf(noob) / otherTokenTo18Conversion);
 
 
 Multiply:

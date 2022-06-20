@@ -13,7 +13,6 @@ contract MakerDaiDelegateCloner {
 
     constructor(
         address _vault,
-        address _yVault,
         string memory _strategyName
     //    bytes32 _ilk_want,
     //    bytes32 _ilk_yieldBearing,
@@ -25,7 +24,6 @@ contract MakerDaiDelegateCloner {
         Strategy _original =
             new Strategy(
                 _vault,
-                _yVault,
                 _strategyName
    //             _ilk_want,
    //             _ilk_yieldBearing,
@@ -54,7 +52,6 @@ contract MakerDaiDelegateCloner {
         address _strategist,
         address _rewards,
         address _keeper,
-        address _yVault,
         string memory _strategyName
  //       bytes32 _ilk_want,
  //       bytes32 _ilk_yieldBearing,
@@ -82,7 +79,6 @@ contract MakerDaiDelegateCloner {
 
         Strategy(newStrategy).initialize(
             _vault,
-            _yVault,
             _strategyName
    //         _ilk_want,
    //         _ilk_yieldBearing,
