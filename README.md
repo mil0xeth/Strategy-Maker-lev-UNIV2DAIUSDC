@@ -1,7 +1,5 @@
 # Strategy-Maker-lev-GUNIV3DAIUSDC
-- The strategy uses the want token (either USDC or DAI) to create GUNIV3DAIUSDC to then collateralize it on Maker and mint DAI. The DAI is then used to create more GUNIV3DAIUSDC to collateralize it on Maker further for more DAI.
-
-![Strategy-Maker-lev-wstETH diagram](https://github.com/mil0xeth/Strategy-Maker-lev-wstETH/blob/main/strategydiagram.jpeg?raw=true)
+- The strategy uses the want token (either USDC or DAI; here: DAI) to create GUNIV3DAIUSDC (either 0.05% or 0.01% fees; here: 0.05%) to then collateralize it on Maker and leverage up up to 50x.
 
 ## Installation and Setup
 

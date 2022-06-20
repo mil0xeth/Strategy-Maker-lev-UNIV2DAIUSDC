@@ -123,7 +123,7 @@ contract Strategy is BaseStrategy {
         rebalanceTolerance = (5 * WAD) / 1000;
 
         // Minimum collateralization ratio for GUNIV3DAIUSDC is 102%
-        collateralizationRatio = (104 * WAD) / 100;
+        collateralizationRatio = (103 * WAD) / 100;
 
         // Set max acceptable base fee to take on more debt to 60 gwei
         //maxAcceptableBaseFee = 60 * 1e9;
