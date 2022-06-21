@@ -253,6 +253,7 @@ def test_lower_ratio_inside_rebalancing_band_should_not_take_more_debt(
     vault, strategy, token, amount, user, gov
 ):
     # Deposit to the vault
+    strategy.setCollateralizationRatio(1.05e18, {"from": gov})
     assert token.balanceOf(vault) == 0
     token.approve(vault.address, amount, {"from": user})
     vault.deposit(amount, {"from": user})
@@ -272,7 +273,6 @@ def test_lower_ratio_inside_rebalancing_band_should_not_take_more_debt(
 def test_higher_target_ratio_should_repay_debt(
     vault, strategy, token, amount, user, gov, RELATIVE_APPROX
 ):
-    strategy.setReinvestmentLeverageComponent(0, {'from': gov})
     assert token.balanceOf(vault) == 0
     # Deposit to the vault
     token.approve(vault.address, amount, {"from": user})
@@ -355,7 +355,6 @@ def test_higher_ratio_inside_rebalancing_band_should_not_repay_debt(
 def test_vault_ratio_calculation_on_withdraw(
     yieldBearing_whale, vault,  test_strategy, token, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
 ):
-    #strategy.setReinvestmentLeverageComponent(0, {'from': gov})
     # Initial ratio is 0 because there is no collateral locked
     assert test_strategy.getCurrentMakerVaultRatio() == 0
 

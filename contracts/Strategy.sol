@@ -60,7 +60,7 @@ contract Strategy is BaseStrategy {
     uint256 public rebalanceTolerance;
 
     // Max acceptable base fee to take more debt or harvest
-    uint256 internal maxAcceptableBaseFee;
+    uint256 public maxAcceptableBaseFee;
 
     // Maximum Single Trade possible
     uint256 public maxSingleTrade;
@@ -122,21 +122,18 @@ contract Strategy is BaseStrategy {
         // Allow additional 0.005 in any direction (1035, 1045) by default
         rebalanceTolerance = (5 * WAD) / 1000;
 
-        // Minimum collateralization ratio for GUNIV3DAIUSDC is 102%
-        collateralizationRatio = (103 * WAD) / 100;
+        // Minimum collateralization ratio for GUNIV3DAIUSDC is 102% == 1020
+        collateralizationRatio = (1022 * WAD) / 1000;
 
         // Set max acceptable base fee to take on more debt to 60 gwei
         //maxAcceptableBaseFee = 60 * 1e9;
         maxAcceptableBaseFee = 1000 * 1e9;
     }
 
-    //we get eth
-    receive() external payable {}
 
     // ----------------- SETTERS & MIGRATION -----------------
 
-/*
-    function updateMaxSingleTrade(uint256 _maxSingleTrade) public onlyVaultManagers {
+    function updateMaxSingleTrade(uint256 _maxSingleTrade) external onlyVaultManagers {
         maxSingleTrade = _maxSingleTrade;
     }
 
@@ -147,7 +144,7 @@ contract Strategy is BaseStrategy {
     {
         maxAcceptableBaseFee = _maxAcceptableBaseFee;
     }
-*/
+
     // Target collateralization ratio to maintain within bounds
     function setCollateralizationRatio(uint256 _collateralizationRatio)
         external
@@ -172,7 +169,7 @@ contract Strategy is BaseStrategy {
         MakerDaiDelegateLib.shiftCdp(cdpId, newCdpId);
         cdpId = newCdpId;
     }
-/*
+
     // Allow address to manage Maker's CDP
     function grantCdpManagingRightsToUser(address user, bool allow)
         external
@@ -190,7 +187,7 @@ contract Strategy is BaseStrategy {
     {
         _repayDebt(currentRatio);
     }
-*/
+
 
 
     // ******** OVERRIDEN METHODS FROM BASE CONTRACT ************
@@ -280,7 +277,6 @@ contract Strategy is BaseStrategy {
         } else {
             return (_wantAmountNeeded, 0);
         }
-
     }
 
     function liquidateAllPositions()
@@ -348,15 +344,9 @@ contract Strategy is BaseStrategy {
         return _amtInWei;
     }
 
-    // ----------------- INTERNAL FUNCTIONS SUPPORT -----------------
-    function _repayDebt(uint256 currentRatio) internal {
-        uint256 currentDebt = balanceOfDebt();
-        if (currentRatio > collateralizationRatio || currentDebt == 0) {
-            return;
-        }
-        MakerDaiDelegateLib.unwind(0, collateralizationRatio, cdpId);
-    }
+    receive() external payable {}
 
+    // ----------------- FLASHLOAN CALLBACK -----------------
     //Flashmint Callback:
     function onFlashLoan(
         address initiator,
@@ -395,6 +385,16 @@ contract Strategy is BaseStrategy {
     }   
     */
 
+
+    // ----------------- INTERNAL FUNCTIONS SUPPORT -----------------
+    function _repayDebt(uint256 currentRatio) internal {
+        uint256 currentDebt = balanceOfDebt();
+        if (currentRatio > collateralizationRatio || currentDebt == 0) {
+            return;
+        }
+        MakerDaiDelegateLib.unwind(0, collateralizationRatio, cdpId);
+    }
+
     function _investmentTokenAmountToMint(uint256 _amount) internal returns (uint256) {
         return _amount.mul(getWantPerYieldBearing()).mul(WAD).div(collateralizationRatio).div(WAD);
     }
@@ -410,8 +410,8 @@ contract Strategy is BaseStrategy {
         }
     }
 
-    // ----------------- PUBLIC BALANCES AND CALCS -----------------
 
+    // ----------------- PUBLIC BALANCES AND CALCS -----------------
     function balanceOfWant() public view returns (uint256) {
         return want.balanceOf(address(this));
     }
@@ -458,7 +458,7 @@ contract Strategy is BaseStrategy {
     }
 
     // Check if current block's base fee is under max allowed base fee
-    function isCurrentBaseFeeAcceptable() internal view returns (bool) {
+    function isCurrentBaseFeeAcceptable() public view returns (bool) {
         uint256 baseFee;
         try baseFeeProvider.basefee_global() returns (uint256 currentBaseFee) {
             baseFee = currentBaseFee;
@@ -485,18 +485,6 @@ contract Strategy is BaseStrategy {
             collateralAmount,
             daiToMint,
             balanceOfDebt()
-        );
-    }
-
-    function _freeCollateralAndRepayDai(
-        uint256 collateralAmount,
-        uint256 daiToRepay
-    ) internal {
-        MakerDaiDelegateLib.wipeAndFreeGem(
-            gemJoinAdapter,
-            cdpId,
-            collateralAmount,
-            daiToRepay
         );
     }
 

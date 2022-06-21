@@ -109,39 +109,6 @@ def test_allow_managing_cdp_acl(strategy, gov, strategist, management, guardian,
         cdpManager.cdpAllow(cdp, guardian, 1, {"from": user})
 
 
-def test_migrate_dai_yvault_acl(
-    strategy,
-    gov,
-    strategist,
-    management,
-    guardian,
-    user,
-    dai,
-    new_dai_yvault,
-    token,
-    vault,
-    amount,
-):
-    with reverts("!authorized"):
-        strategy.migrateToNewDaiYVault(new_dai_yvault, {"from": strategist})
-
-    with reverts("!authorized"):
-        strategy.migrateToNewDaiYVault(new_dai_yvault, {"from": management})
-
-    with reverts("!authorized"):
-        strategy.migrateToNewDaiYVault(new_dai_yvault, {"from": guardian})
-
-    with reverts("!authorized"):
-        strategy.migrateToNewDaiYVault(new_dai_yvault, {"from": user})
-
-    # Need to deposit so there is something in the yVault before migrating
-    token.approve(vault.address, amount, {"from": user})
-    vault.deposit(amount, {"from": user})
-    chain.sleep(1)
-    strategy.harvest({"from": gov})
-    strategy.migrateToNewDaiYVault(new_dai_yvault, {"from": gov})
-    assert dai.allowance(strategy, new_dai_yvault) == 2 ** 256 - 1
-
 
 def test_emergency_debt_repayment_acl(
     strategy, gov, strategist, management, guardian, user
@@ -162,7 +129,7 @@ def test_emergency_debt_repayment_acl(
         strategy.emergencyDebtRepayment(0, {"from": user})
 
 
-def DISABLED_set_max_acceptable_base_fee_acl(
+def test_set_max_acceptable_base_fee_acl(
     strategy, gov, strategist, management, guardian, user
 ):
     strategy.setMaxAcceptableBaseFee(100 * 1e9, {"from": gov})

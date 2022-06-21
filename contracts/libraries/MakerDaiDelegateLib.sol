@@ -264,46 +264,10 @@ library MakerDaiDelegateLib {
     }
 
     // Liquidation ratio for the given ilk returned in [ray]
-    // https://github.com/makerdao/dss/blob/master/src/spot.sol#L45
     function getLiquidationRatio(bytes32 ilk) public view returns (uint256) {
         (, uint256 liquidationRatio) = spotter.ilks(ilk);
         return liquidationRatio;
     }
-    /*
-    function getIlkOSMPrice(bytes32 _ilk, address _OSMProxyAddress) public view returns (uint256) {
-        IOSMedianizer OSMProxy = IOSMedianizer(_OSMProxyAddress);
-        // Use price from spotter as base
-        uint256 minPrice = getSpotPrice(_ilk);
-        // Peek the OSM to get current price
-        if (_OSMProxyAddress != address(0)) {
-            try OSMProxy.read() returns (
-                uint256 current,
-                bool currentIsValid
-            ) {
-                if (currentIsValid && current > 0) {
-                    minPrice = Math.min(minPrice, current);
-                }
-            } catch {
-                // Ignore price peek()'d from OSM. Maybe we are no longer authorized.
-            }
-
-            // Peep the OSM to get future price
-            try OSMProxy.foresight() returns (
-                uint256 future,
-                bool futureIsValid
-            ) {
-                if (futureIsValid && future > 0) {
-                    minPrice = Math.min(minPrice, future);
-                }
-            } catch {
-                // Ignore price peep()'d from OSM. Maybe we are no longer authorized.
-            }
-        }
-        require(minPrice > 0); // dev: invalid spot price
-        return minPrice.mul(RAY).div(getDaiPar());
-        //return minPrice;
-    }
-    */
 
     function getSpotPrice(bytes32 ilk) public view returns (uint256) {
         VatLike vat = VatLike(manager.vat());
@@ -372,105 +336,11 @@ library MakerDaiDelegateLib {
         return true;
     }
 
-    // ----------------- INTERNAL FUNCTIONS -----------------
-
-    // This function repeats some code from daiAvailableToMint because it needs
-    // to handle special cases such as not leaving debt under dust
-    function _forceMintWithinLimits(
-        VatLike vat,
-        bytes32 ilk,
-        uint256 desiredAmount,
-        uint256 debtBalance
-    ) internal view returns (uint256) {
-        // uint256 Art;   // Total Normalised Debt     [wad]
-        // uint256 rate;  // Accumulated Rates         [ray]
-        // uint256 spot;  // Price with Safety Margin  [ray]
-        // uint256 line;  // Debt Ceiling              [rad]
-        // uint256 dust;  // Urn Debt Floor            [rad]
-        (uint256 Art, uint256 rate, , uint256 line, uint256 dust) =
-            vat.ilks(ilk);
-
-        // Total debt in [rad] (wad * ray)
-        uint256 vatDebt = Art.mul(rate);
-
-        // Make sure we are not over debt ceiling (line) or under debt floor (dust)
-        if (
-            vatDebt >= line || (desiredAmount.add(debtBalance) <= dust.div(RAY))
-        ) {
-            return 0;
-        }
-
-        uint256 maxMintableDAI = line.sub(vatDebt).div(RAY);
-
-        // Avoid edge cases with low amounts of available debt
-        if (maxMintableDAI < MIN_MINTABLE) {
-            return 0;
-        }
-
-        // Prevent rounding errors
-        if (maxMintableDAI > WAD) {
-            maxMintableDAI = maxMintableDAI - WAD;
-        }
-
-        return Math.min(maxMintableDAI, desiredAmount);
-    }
-
-    // Adapted from https://github.com/makerdao/dss-proxy-actions/blob/master/src/DssProxyActions.sol#L161
-    function _getDrawDart(
-        VatLike vat,
-        address urn,
-        bytes32 ilk,
-        uint256 wad
-    ) internal returns (int256 dart) {
-        // Updates stability fee rate
-        uint256 rate = jug.drip(ilk);
-
-        // Gets DAI balance of the urn in the vat
-        uint256 dai = vat.dai(urn);
-
-        // If there was already enough DAI in the vat balance, just exits it without adding more debt
-        if (dai < wad.mul(RAY)) {
-            // Calculates the needed dart so together with the existing dai in the vat is enough to exit wad amount of DAI tokens
-            dart = int256(wad.mul(RAY).sub(dai).div(rate));
-            // This is neeeded due to lack of precision. It might need to sum an extra dart wei (for the given DAI wad amount)
-            dart = uint256(dart).mul(rate) < wad.mul(RAY) ? dart + 1 : dart;
-        }
-    }
-
-    // Adapted from https://github.com/makerdao/dss-proxy-actions/blob/master/src/DssProxyActions.sol#L183
-    function _getWipeDart(
-        VatLike vat,
-        uint256 dai,
-        address urn,
-        bytes32 ilk
-    ) internal view returns (int256 dart) {
-        // Gets actual rate from the vat
-        (, uint256 rate, , , ) = vat.ilks(ilk);
-        // Gets actual art value of the urn
-        (, uint256 art) = vat.urns(ilk, urn);
-
-        // Uses the whole dai balance in the vat to reduce the debt
-        dart = int256(dai / rate);
-
-        // Checks the calculated dart is not higher than urn.art (total debt), otherwise uses its value
-        dart = uint256(dart) <= art ? -dart : -int256(art);
-    }
-
-    function convertTo18(address gemJoin, uint256 amt)
-        internal
-        returns (uint256 wad)
-    {
-        // For those collaterals that have less than 18 decimals precision we need to do the conversion before
-        // passing to frob function
-        // Adapters will automatically handle the difference of precision
-        wad = amt.mul(10**(18 - GemJoinLike(gemJoin).dec()));
-    }
-
     function wind(
         uint256 wantAmountInitial,
         uint256 collateralizationRatio,
         uint256 cdpId
-    ) external {
+    ) public {
         wantAmountInitial = Math.min(wantAmountInitial, balanceOfWant());
         //Calculate how much investmentToken to mint to leverage up to collateralization ratio:
         uint256 flashloanAmount = wantAmountInitial.mul(RAY).div(collateralizationRatio.mul(1e9).sub(RAY));
@@ -479,14 +349,14 @@ library MakerDaiDelegateLib {
             return;
         }
         bytes memory data = abi.encode(Action.WIND, cdpId, wantAmountInitial, flashloanAmount, collateralizationRatio); 
-        initFlashLoan(data, flashloanAmount);
+        _initFlashLoan(data, flashloanAmount);
     }
     
     function unwind(
         uint256 wantAmountRequested,
         uint256 collateralizationRatio,
         uint256 cdpId
-    ) external {
+    ) public {
         if (balanceOfCdp(cdpId, ilk_yieldBearing) == 0){
             return;
         }
@@ -494,10 +364,98 @@ library MakerDaiDelegateLib {
         uint256 flashloanAmount = debtForCdp(cdpId, ilk_yieldBearing).add(1);
         bytes memory data = abi.encode(Action.UNWIND, cdpId, wantAmountRequested, flashloanAmount, collateralizationRatio);
         //Always flashloan entire debt to pay off entire debt:
-        initFlashLoan(data, flashloanAmount);
+        _initFlashLoan(data, flashloanAmount);
     }
 
-    function initFlashLoan(bytes memory data, uint256 amount) internal {
+    function _wind(uint256 cdpId, uint256 flashloanRepayAmount, uint256 wantAmountInitial, uint256 collateralizationRatio) public {
+        //repayAmount includes any fees
+        uint256 yieldBearingAmountToLock = _swapWantToYieldBearing(balanceOfWant());
+        //Check allowance to lock collateral 
+        _checkAllowance(gemJoinAdapter, address(yieldBearing), yieldBearingAmountToLock);
+        //Lock collateral and borrow dai to repay flashmint
+        lockGemAndDraw(
+            gemJoinAdapter,
+            cdpId,
+            yieldBearingAmountToLock,
+            flashloanRepayAmount,
+            debtForCdp(cdpId, ilk_yieldBearing)
+        );
+    }
+
+    function _unwind(uint256 cdpId, uint256 flashloanRepayAmount, uint256 wantAmountRequested, uint256 collateralizationRatio) public {
+        //Repay entire debt, to then take debt again later:
+        //Check allowance for repaying investmentToken Debt
+        uint256 currentDebtPlusRounding = debtForCdp(cdpId, ilk_yieldBearing).add(1);
+        _checkAllowance(daiJoinAddress(), address(investmentToken), currentDebtPlusRounding);
+        wipeAndFreeGem(gemJoinAdapter, cdpId, balanceOfCdp(cdpId, ilk_yieldBearing), currentDebtPlusRounding);
+        //All debt paid down, collateral unlocked
+        //Calculate leverage+1 to know how much totalRequestedInYieldBearing to swap for investmentToken
+        uint256 leveragePlusOne = (RAY.mul(WAD).div((collateralizationRatio.mul(1e9).sub(RAY)))).add(WAD);
+        uint256 totalRequestedInYieldBearing = wantAmountRequested.mul(leveragePlusOne).div(getWantPerYieldBearing());
+
+        _swapYieldBearingToWant(totalRequestedInYieldBearing);
+        //Want amount requested now in wallet
+
+        //Lock collateral and borrow dai equivalent to amount given by collateralizationRatio:
+        uint256 yieldBearingBalance = balanceOfYieldBearing();
+        uint256 investmentTokenAmountToMint = yieldBearingBalance.mul(getWantPerYieldBearing()).div(collateralizationRatio);
+        //Check if amount of dai to borrow is above debtFloor. If not, swap everything to want and return.
+        if ( investmentTokenAmountToMint <= debtFloor(ilk_yieldBearing).add(1e15)){
+            _swapYieldBearingToWant(balanceOfYieldBearing());
+            return;
+        }
+        //Check allowance to lock collateral 
+        _checkAllowance(gemJoinAdapter, address(yieldBearing), yieldBearingBalance);
+        //Lock collateral and mint dai to repay flashmint
+        lockGemAndDraw(
+            gemJoinAdapter,
+            cdpId,
+            yieldBearingBalance,
+            investmentTokenAmountToMint,
+            debtForCdp(cdpId, ilk_yieldBearing)
+        );
+        //want=dai: nothing further necessary
+
+    }
+
+    //get amount of Want in Wei that is received for 1 yieldBearing
+    function getWantPerYieldBearing() internal view returns (uint256){
+        (uint256 wantUnderlyingBalance, uint256 otherTokenUnderlyingBalance) = yieldBearing.getUnderlyingBalances();
+        return (wantUnderlyingBalance.mul(WAD).add(otherTokenUnderlyingBalance.mul(WAD).mul(WAD).div(1e6))).div(yieldBearing.totalSupply());
+    }
+
+    function balanceOfWant() internal view returns (uint256) {
+        return want.balanceOf(address(this));
+    }
+
+    function balanceOfYieldBearing() internal view returns (uint256) {
+        return yieldBearing.balanceOf(address(this));
+    }
+
+    function balanceOfOtherToken() internal view returns (uint256) {
+        return otherToken.balanceOf(address(this));
+    }
+
+    /*
+    //want=usdc
+    function balanceOfInvestmentToken() public view returns (uint256) {
+        return investmentToken.balanceOf(address(this));
+    }
+    //DYDX requires a minimum of a few wei to use Flashloan for investmentToken. Create 1000 wei floor of investmentToken to allow flashloan anytime:
+    function balanceOfInvestmentToken() public view returns (uint256) {
+        uint256 tokenBalance = investmentToken.balanceOf(address(this));
+        if (tokenBalance > 1000) {
+            tokenBalance = tokenBalance.sub(1000);
+        } else {
+            tokenBalance = 0;
+        }
+        return tokenBalance;
+    }
+    */
+
+    // ----------------- INTERNAL FUNCTIONS -----------------
+
+        function _initFlashLoan(bytes memory data, uint256 amount) internal {
         //DYDX Flashloan implementation for testing purposes - flashmint works flawlessly, but induces event scoping issues during debugging in brownie
         /*
         bool useDYDX = true;
@@ -524,73 +482,11 @@ library MakerDaiDelegateLib {
         flashmint.flashLoan(address(this), address(investmentToken), amount, data);
     }
 
-    function _wind(uint256 cdpId, uint256 flashloanRepayAmount, uint256 wantAmountInitial, uint256 collateralizationRatio) internal {
-        //repayAmount includes any fees
-        uint256 yieldBearingAmountToLock = _swapWantToYieldBearing(balanceOfWant());
-        //Check allowance to lock collateral 
-        _checkAllowance(gemJoinAdapter, address(yieldBearing), yieldBearingAmountToLock);
-        //Lock collateral and borrow dai to repay flashmint
-        lockGemAndDraw(
-            gemJoinAdapter,
-            cdpId,
-            yieldBearingAmountToLock,
-            flashloanRepayAmount,
-            debtForCdp(cdpId, ilk_yieldBearing)
-        );
-    }
-
-    function _unwind(uint256 cdpId, uint256 flashloanRepayAmount, uint256 wantAmountRequested, uint256 collateralizationRatio) internal {
-        //Repay entire debt, to then take debt again later:
-        //Check allowance for repaying investmentToken Debt
-        uint256 currentDebtPlusRounding = debtForCdp(cdpId, ilk_yieldBearing).add(1);
-        _checkAllowance(daiJoinAddress(), address(investmentToken), currentDebtPlusRounding);
-        wipeAndFreeGem(gemJoinAdapter, cdpId, balanceOfCdp(cdpId, ilk_yieldBearing), currentDebtPlusRounding);
-        //All debt paid down, collateral unlocked
-        //Calculate leverage+1 to know how much totalRequestedInYieldBearing to swap for investmentToken
-        uint256 leveragePlusOne = (RAY.mul(WAD).div((collateralizationRatio.mul(1e9).sub(RAY)))).add(WAD);
-        uint256 totalRequestedInYieldBearing = wantAmountRequested.mul(leveragePlusOne).div(getWantPerYieldBearing());
-
-        _swapYieldBearingToWant(totalRequestedInYieldBearing);
-        //Want amount requested now in wallet
-
-        //Lock collateral and borrow dai equivalent to amount given by collateralizationRatio:
-        uint256 yieldBearingBalance = balanceOfYieldBearing();
-        uint256 investmentTokenAmountToMint = yieldBearingBalance.mul(getWantPerYieldBearing()).div(collateralizationRatio);
-        //Check if amount of dai to borrow is above debtFloor. If not, swap everything to want and return.
-        if ( investmentTokenAmountToMint <= debtFloor(ilk_yieldBearing).add(1e15)){
-            _swapYieldBearingToWant(balanceOfYieldBearing());
-            return;
-        }
-
-        //Check allowance to lock collateral 
-        _checkAllowance(gemJoinAdapter, address(yieldBearing), yieldBearingBalance);
-        //Lock collateral and mint dai to repay flashmint
-        lockGemAndDraw(
-            gemJoinAdapter,
-            cdpId,
-            yieldBearingBalance,
-            investmentTokenAmountToMint,
-            debtForCdp(cdpId, ilk_yieldBearing)
-        );
-        //want=dai: nothing further necessary
-
-    }
-
-    function getTokenOutPath(address _token_in, address _token_out)
-        public
-        pure
-        returns (address[] memory _path)
-    {
-        _path = new address[](2);
-        _path[0] = _token_in;
-        _path[1] = _token_out;
-    }
-
     function _checkAllowance(
         address _contract,
         address _token,
         uint256 _amount
-    ) public {
+    ) internal {
         if (IERC20(_token).allowance(address(this), _contract) < _amount) {
             //IERC20(_token).safeApprove(_contract, 0);
             IERC20(_token).safeApprove(_contract, type(uint256).max);
@@ -637,39 +533,94 @@ library MakerDaiDelegateLib {
         psm.sellGem(address(this), otherTokenBalance);
     }
 
-    function balanceOfWant() public view returns (uint256) {
-        return want.balanceOf(address(this));
-    }
+    // This function repeats some code from daiAvailableToMint because it needs
+    // to handle special cases such as not leaving debt under dust
+    function _forceMintWithinLimits(
+        VatLike vat,
+        bytes32 ilk,
+        uint256 desiredAmount,
+        uint256 debtBalance
+    ) internal view returns (uint256) {
+        // uint256 Art;   // Total Normalised Debt     [wad]
+        // uint256 rate;  // Accumulated Rates         [ray]
+        // uint256 spot;  // Price with Safety Margin  [ray]
+        // uint256 line;  // Debt Ceiling              [rad]
+        // uint256 dust;  // Urn Debt Floor            [rad]
+        (uint256 Art, uint256 rate, , uint256 line, uint256 dust) =
+            vat.ilks(ilk);
 
-    function balanceOfYieldBearing() public view returns (uint256) {
-        return yieldBearing.balanceOf(address(this));
-    }
+        // Total debt in [rad] (wad * ray)
+        uint256 vatDebt = Art.mul(rate);
 
-    function balanceOfOtherToken() public view returns (uint256) {
-        return otherToken.balanceOf(address(this));
-    }
-
-    /*
-    //want=usdc
-    function balanceOfInvestmentToken() public view returns (uint256) {
-        return investmentToken.balanceOf(address(this));
-    }
-    //DYDX requires a minimum of a few wei to use Flashloan for investmentToken. Create 1000 wei floor of investmentToken to allow flashloan anytime:
-    function balanceOfInvestmentToken() public view returns (uint256) {
-        uint256 tokenBalance = investmentToken.balanceOf(address(this));
-        if (tokenBalance > 1000) {
-            tokenBalance = tokenBalance.sub(1000);
-        } else {
-            tokenBalance = 0;
+        // Make sure we are not over debt ceiling (line) or under debt floor (dust)
+        if (
+            vatDebt >= line || (desiredAmount.add(debtBalance) <= dust.div(RAY))
+        ) {
+            return 0;
         }
-        return tokenBalance;
-    }
-    */
 
-    //get amount of Want in Wei that is received for 1 yieldBearing
-    function getWantPerYieldBearing() public view returns (uint256){
-        (uint256 wantUnderlyingBalance, uint256 otherTokenUnderlyingBalance) = yieldBearing.getUnderlyingBalances();
-        return (wantUnderlyingBalance.mul(WAD).add(otherTokenUnderlyingBalance.mul(WAD).mul(WAD).div(1e6))).div(yieldBearing.totalSupply());
+        uint256 maxMintableDAI = line.sub(vatDebt).div(RAY);
+
+        // Avoid edge cases with low amounts of available debt
+        if (maxMintableDAI < MIN_MINTABLE) {
+            return 0;
+        }
+
+        // Prevent rounding errors
+        if (maxMintableDAI > WAD) {
+            maxMintableDAI = maxMintableDAI - WAD;
+        }
+
+        return Math.min(maxMintableDAI, desiredAmount);
+    }
+
+    function _getDrawDart(
+        VatLike vat,
+        address urn,
+        bytes32 ilk,
+        uint256 wad
+    ) internal returns (int256 dart) {
+        // Updates stability fee rate
+        uint256 rate = jug.drip(ilk);
+
+        // Gets DAI balance of the urn in the vat
+        uint256 dai = vat.dai(urn);
+
+        // If there was already enough DAI in the vat balance, just exits it without adding more debt
+        if (dai < wad.mul(RAY)) {
+            // Calculates the needed dart so together with the existing dai in the vat is enough to exit wad amount of DAI tokens
+            dart = int256(wad.mul(RAY).sub(dai).div(rate));
+            // This is neeeded due to lack of precision. It might need to sum an extra dart wei (for the given DAI wad amount)
+            dart = uint256(dart).mul(rate) < wad.mul(RAY) ? dart + 1 : dart;
+        }
+    }
+
+    function _getWipeDart(
+        VatLike vat,
+        uint256 dai,
+        address urn,
+        bytes32 ilk
+    ) internal view returns (int256 dart) {
+        // Gets actual rate from the vat
+        (, uint256 rate, , , ) = vat.ilks(ilk);
+        // Gets actual art value of the urn
+        (, uint256 art) = vat.urns(ilk, urn);
+
+        // Uses the whole dai balance in the vat to reduce the debt
+        dart = int256(dai / rate);
+
+        // Checks the calculated dart is not higher than urn.art (total debt), otherwise uses its value
+        dart = uint256(dart) <= art ? -dart : -int256(art);
+    }
+
+    function convertTo18(address gemJoin, uint256 amt)
+        internal
+        returns (uint256 wad)
+    {
+        // For those collaterals that have less than 18 decimals precision we need to do the conversion before
+        // passing to frob function
+        // Adapters will automatically handle the difference of precision
+        wad = amt.mul(10**(18 - GemJoinLike(gemJoin).dec()));
     }
 
 
