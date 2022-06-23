@@ -326,7 +326,7 @@ def test_higher_target_ratio_should_repay_debt(
 
 
 def test_higher_ratio_inside_rebalancing_band_should_not_repay_debt(
-    vault, test_strategy, token, amount, user, gov
+    vault, test_strategy, token, amount, user, gov, RELATIVE_APPROX
 ):
     # Deposit to the vault
     token.approve(vault.address, amount, {"from": user})

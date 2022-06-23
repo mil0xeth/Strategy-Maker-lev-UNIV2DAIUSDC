@@ -113,20 +113,20 @@ def test_allow_managing_cdp_acl(strategy, gov, strategist, management, guardian,
 def test_emergency_debt_repayment_acl(
     strategy, gov, strategist, management, guardian, user
 ):
-    strategy.emergencyDebtRepayment(0, {"from": gov})
+    strategy.emergencyDebtRepayment(strategy.estimatedTotalAssets(), {"from": gov})
     assert strategy.balanceOfDebt() == 0
 
-    strategy.emergencyDebtRepayment(0, {"from": management})
+    strategy.emergencyDebtRepayment(strategy.estimatedTotalAssets(), {"from": management})
     assert strategy.balanceOfDebt() == 0
 
     with reverts("!authorized"):
-        strategy.emergencyDebtRepayment(0, {"from": strategist})
+        strategy.emergencyDebtRepayment(strategy.estimatedTotalAssets(), {"from": strategist})
 
     with reverts("!authorized"):
-        strategy.emergencyDebtRepayment(0, {"from": guardian})
+        strategy.emergencyDebtRepayment(strategy.estimatedTotalAssets(), {"from": guardian})
 
     with reverts("!authorized"):
-        strategy.emergencyDebtRepayment(0, {"from": user})
+        strategy.emergencyDebtRepayment(strategy.estimatedTotalAssets(), {"from": user})
 
 
 def test_set_max_acceptable_base_fee_acl(

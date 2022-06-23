@@ -48,7 +48,7 @@ def test_basic_shutdown(
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
     ## Earn interest
-    chain.sleep(3600 * 24 * 1)  ## Sleep 1 day
+    #chain.sleep(3600 * 24 * 1)  ## Sleep 1 day
     chain.mine(1)
 
     # Harvest 2: Realize profit

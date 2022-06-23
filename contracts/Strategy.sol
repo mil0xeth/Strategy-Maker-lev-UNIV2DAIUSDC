@@ -24,14 +24,14 @@ contract Strategy is BaseStrategy {
     enum Action {WIND, UNWIND}
 
     //GUNIDAIUSDC1 - Gelato Uniswap DAI/USDC LP - 0.05% fee
-    GUniPool internal constant yieldBearing = GUniPool(0xAbDDAfB225e10B90D798bB8A886238Fb835e2053);
-    bytes32 internal constant ilk_yieldBearing = 0x47554e49563344414955534443312d4100000000000000000000000000000000;
-    address internal constant gemJoinAdapter = 0xbFD445A97e7459b0eBb34cfbd3245750Dba4d7a4;
+    //GUniPool internal constant yieldBearing = GUniPool(0xAbDDAfB225e10B90D798bB8A886238Fb835e2053);
+    //bytes32 internal constant ilk_yieldBearing = 0x47554e49563344414955534443312d4100000000000000000000000000000000;
+    //address internal constant gemJoinAdapter = 0xbFD445A97e7459b0eBb34cfbd3245750Dba4d7a4;
     
     //GUNIDAIUSDC2 - Gelato Uniswap DAI/USDC2 LP 2 - 0.01% fee
-    //GUniPool internal constant yieldBearing = GUniPool(0x50379f632ca68D36E50cfBC8F78fe16bd1499d1e)
-    //bytes32 internal constant ilk_yieldBearing = 0x47554e49563344414955534443322d4100000000000000000000000000000000;
-    //address internal constant gemJoinAdapter = 0xA7e4dDde3cBcEf122851A7C8F7A55f23c0Daf335;
+    GUniPool internal constant yieldBearing = GUniPool(0x50379f632ca68D36E50cfBC8F78fe16bd1499d1e);
+    bytes32 internal constant ilk_yieldBearing = 0x47554e49563344414955534443322d4100000000000000000000000000000000;
+    address internal constant gemJoinAdapter = 0xA7e4dDde3cBcEf122851A7C8F7A55f23c0Daf335;
 
     //Flashmint:
     address internal constant flashmint = 0x1EB4CF3A948E7D72A198fe073cCb8C7a948cD853;
@@ -180,12 +180,11 @@ contract Strategy is BaseStrategy {
 
     // Allow external debt repayment
     // Attempt to take currentRatio to target c-ratio
-    // Passing zero will repay all debt if possible
-    function emergencyDebtRepayment(uint256 currentRatio)
+    function emergencyDebtRepayment(uint256 repayAmountOfWant)
         external
         onlyVaultManagers
     {
-        _repayDebt(currentRatio);
+        MakerDaiDelegateLib.unwind(repayAmountOfWant, getCurrentMakerVaultRatio(), cdpId);
     }
 
 
@@ -217,7 +216,8 @@ contract Strategy is BaseStrategy {
     {
         uint256 totalDebt = vault.strategies(address(this)).totalDebt;
         uint256 totalAssetsAfterProfit = estimatedTotalAssets();
-        _profit = totalAssetsAfterProfit > totalDebt 
+        //Here 0.1 DAI = 1e17 represents the minimum profit of want that should be given back to the vault
+        _profit = totalAssetsAfterProfit > ( totalDebt + 1e17 ) 
             ? totalAssetsAfterProfit.sub(totalDebt)
             : 0;
         uint256 _amountFreed;
@@ -245,7 +245,7 @@ contract Strategy is BaseStrategy {
         uint256 currentRatio = getCurrentMakerVaultRatio();
         //if current ratio is below goal ratio:
         if (currentRatio < collateralizationRatio.sub(rebalanceTolerance)) {
-            _repayDebt(currentRatio);
+            _repayDebtToTargetCollateralizationRatio();
         } else if (
             currentRatio > collateralizationRatio.add(rebalanceTolerance)
         ) {
@@ -387,12 +387,16 @@ contract Strategy is BaseStrategy {
 
 
     // ----------------- INTERNAL FUNCTIONS SUPPORT -----------------
-    function _repayDebt(uint256 currentRatio) internal {
+    function _repayDebtToTargetCollateralizationRatio() internal {
+        uint256 currentRatio = getCurrentMakerVaultRatio();
         uint256 currentDebt = balanceOfDebt();
-        if (currentRatio > collateralizationRatio || currentDebt == 0) {
+        if (currentRatio >= collateralizationRatio || currentDebt == 0) {
             return;
         }
-        MakerDaiDelegateLib.unwind(0, collateralizationRatio, cdpId);
+        uint256 currentCollateral = balanceOfMakerVault();
+        uint256 yieldBearingToRepay = currentCollateral.sub( currentCollateral.mul(currentRatio).div(collateralizationRatio)  );
+        uint256 wantAmountToRepay = yieldBearingToRepay.mul(getWantPerYieldBearing()).div(WAD);
+        MakerDaiDelegateLib.unwind(wantAmountToRepay, collateralizationRatio, cdpId);
     }
 
     function _investmentTokenAmountToMint(uint256 _amount) internal returns (uint256) {
@@ -450,6 +454,10 @@ contract Strategy is BaseStrategy {
     // Returns collateral balance in the vault
     function balanceOfMakerVault() public view returns (uint256) {
         return MakerDaiDelegateLib.balanceOfCdp(cdpId, ilk_yieldBearing);
+    }
+
+    function balanceOfDaiAvailableToMint() public view returns (uint256) {
+        return MakerDaiDelegateLib.balanceOfDaiAvailableToMint(ilk_yieldBearing);
     }
 
     // Effective collateralization ratio of the vault

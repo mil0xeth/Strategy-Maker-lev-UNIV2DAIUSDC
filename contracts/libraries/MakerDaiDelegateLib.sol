@@ -76,14 +76,14 @@ library MakerDaiDelegateLib {
     //uint256 public constant otherTokenTo18Conversion = 1;
 
     //GUNIDAIUSDC1 - Gelato Uniswap DAI/USDC LP - 0.05% fee
-    GUniPool internal constant yieldBearing = GUniPool(0xAbDDAfB225e10B90D798bB8A886238Fb835e2053);
-    bytes32 internal constant ilk_yieldBearing = 0x47554e49563344414955534443312d4100000000000000000000000000000000;
-    address internal constant gemJoinAdapter = 0xbFD445A97e7459b0eBb34cfbd3245750Dba4d7a4;
+    //GUniPool internal constant yieldBearing = GUniPool(0xAbDDAfB225e10B90D798bB8A886238Fb835e2053);
+    //bytes32 internal constant ilk_yieldBearing = 0x47554e49563344414955534443312d4100000000000000000000000000000000;
+    //address internal constant gemJoinAdapter = 0xbFD445A97e7459b0eBb34cfbd3245750Dba4d7a4;
     
     //GUNIDAIUSDC2 - Gelato Uniswap DAI/USDC2 LP 2 - 0.01% fee
-    //GUniPool internal constant yieldBearing = GUniPool(0x50379f632ca68D36E50cfBC8F78fe16bd1499d1e);
-    //bytes32 internal constant ilk_yieldBearing = 0x47554e49563344414955534443322d4100000000000000000000000000000000;
-    //address internal constant gemJoinAdapter = 0xA7e4dDde3cBcEf122851A7C8F7A55f23c0Daf335;
+    GUniPool internal constant yieldBearing = GUniPool(0x50379f632ca68D36E50cfBC8F78fe16bd1499d1e);
+    bytes32 internal constant ilk_yieldBearing = 0x47554e49563344414955534443322d4100000000000000000000000000000000;
+    address internal constant gemJoinAdapter = 0xA7e4dDde3cBcEf122851A7C8F7A55f23c0Daf335;
 
     PSMLike public constant psm = PSMLike(0x89B78CfA322F6C5dE0aBcEecab66Aee45393cC5A) ;
 
@@ -99,8 +99,8 @@ library MakerDaiDelegateLib {
     uint256 internal constant WAD = 10**18;
     uint256 internal constant RAY = 10**27;
 
-    // Do not attempt to mint DAI if there are less than MIN_MINTABLE available
-    uint256 internal constant MIN_MINTABLE = 500000 * WAD;
+    // Do not attempt to mint DAI if there are less than MIN_MINTABLE available. Used to be 500kDAI --> reduced to 50kDAI
+    uint256 internal constant MIN_MINTABLE = 50000 * WAD;
 
     // Maker vaults manager
     ManagerLike internal constant manager = ManagerLike(0x5ef30b9986345249bc32d8928B7ee64DE9435E39);
@@ -291,8 +291,7 @@ library MakerDaiDelegateLib {
         uint256 price = Math.min(getSpotPrice(ilk), externalPrice);
         require(price > 0); // dev: invalid price
 
-        uint256 totalCollateralValue =
-            balanceOfCdp(cdpId, ilk).mul(price).div(WAD);
+        uint256 totalCollateralValue = balanceOfCdp(cdpId, ilk).mul(price).div(WAD);
         uint256 totalDebt = debtForCdp(cdpId, ilk);
 
         // If for some reason we do not have debt (e.g: deposits under dust)
@@ -301,10 +300,7 @@ library MakerDaiDelegateLib {
             totalDebt = 1;
         }
 
-        return
-            totalCollateralValue.mul(collateralizationRatioPrecision).div(
-                totalDebt
-            );
+        return totalCollateralValue.mul(collateralizationRatioPrecision).div(totalDebt);
     }
 
     // Make sure we update some key content in Maker contracts
@@ -336,6 +332,22 @@ library MakerDaiDelegateLib {
         return true;
     }
 
+    
+    // Checks amount of Dai mintable
+    function balanceOfDaiAvailableToMint(bytes32 ilk) public view returns (uint256) {
+        VatLike vat = VatLike(manager.vat());
+        (uint256 Art, uint256 rate, , uint256 line, ) = vat.ilks(ilk);
+
+        // Total debt in [rad] (wad * ray)
+        uint256 vatDebt = Art.mul(rate);
+
+        if (vatDebt >= line) {
+            return 0;
+        }
+
+        return line.sub(vatDebt).div(RAY);
+    }
+
     function wind(
         uint256 wantAmountInitial,
         uint256 collateralizationRatio,
@@ -344,6 +356,8 @@ library MakerDaiDelegateLib {
         wantAmountInitial = Math.min(wantAmountInitial, balanceOfWant());
         //Calculate how much investmentToken to mint to leverage up to collateralization ratio:
         uint256 flashloanAmount = wantAmountInitial.mul(RAY).div(collateralizationRatio.mul(1e9).sub(RAY));
+        VatLike vat = VatLike(manager.vat());
+        flashloanAmount = Math.min(flashloanAmount, _forceMintWithinLimits(vat, ilk_yieldBearing, flashloanAmount, debtForCdp(cdpId, ilk_yieldBearing)));
         //Check if amount of dai to borrow is above debtFloor
         if ( (debtForCdp(cdpId, ilk_yieldBearing).add(flashloanAmount)) <= debtFloor(ilk_yieldBearing).add(1e15)){
             return;
@@ -354,7 +368,7 @@ library MakerDaiDelegateLib {
     
     function unwind(
         uint256 wantAmountRequested,
-        uint256 collateralizationRatio,
+        uint256 currentCollateralizationRatio,
         uint256 cdpId
     ) public {
         if (balanceOfCdp(cdpId, ilk_yieldBearing) == 0){
@@ -362,7 +376,7 @@ library MakerDaiDelegateLib {
         }
         //Paying off the full debt it's common to experience Vat/dust reverts: we circumvent this with add 1 Wei to the amount to be paid
         uint256 flashloanAmount = debtForCdp(cdpId, ilk_yieldBearing).add(1);
-        bytes memory data = abi.encode(Action.UNWIND, cdpId, wantAmountRequested, flashloanAmount, collateralizationRatio);
+        bytes memory data = abi.encode(Action.UNWIND, cdpId, wantAmountRequested, flashloanAmount, currentCollateralizationRatio);
         //Always flashloan entire debt to pay off entire debt:
         _initFlashLoan(data, flashloanAmount);
     }
@@ -382,7 +396,7 @@ library MakerDaiDelegateLib {
         );
     }
 
-    function _unwind(uint256 cdpId, uint256 flashloanRepayAmount, uint256 wantAmountRequested, uint256 collateralizationRatio) public {
+    function _unwind(uint256 cdpId, uint256 flashloanRepayAmount, uint256 wantAmountRequested, uint256 currentCollateralizationRatio) public {
         //Repay entire debt, to then take debt again later:
         //Check allowance for repaying investmentToken Debt
         uint256 currentDebtPlusRounding = debtForCdp(cdpId, ilk_yieldBearing).add(1);
@@ -390,20 +404,25 @@ library MakerDaiDelegateLib {
         wipeAndFreeGem(gemJoinAdapter, cdpId, balanceOfCdp(cdpId, ilk_yieldBearing), currentDebtPlusRounding);
         //All debt paid down, collateral unlocked
         //Calculate leverage+1 to know how much totalRequestedInYieldBearing to swap for investmentToken
-        uint256 leveragePlusOne = (RAY.mul(WAD).div((collateralizationRatio.mul(1e9).sub(RAY)))).add(WAD);
+        uint256 leveragePlusOne = (RAY.mul(WAD).div((currentCollateralizationRatio.mul(1e9).sub(RAY)))).add(WAD);
         uint256 totalRequestedInYieldBearing = wantAmountRequested.mul(leveragePlusOne).div(getWantPerYieldBearing());
-
+        //Maximum of all yieldBearing can be requested
+        totalRequestedInYieldBearing = Math.min(totalRequestedInYieldBearing, balanceOfYieldBearing());
+        
         _swapYieldBearingToWant(totalRequestedInYieldBearing);
         //Want amount requested now in wallet
 
-        //Lock collateral and borrow dai equivalent to amount given by collateralizationRatio:
+        //Lock collateral and borrow dai equivalent to amount given by currentCollateralizationRatio:
         uint256 yieldBearingBalance = balanceOfYieldBearing();
-        uint256 investmentTokenAmountToMint = yieldBearingBalance.mul(getWantPerYieldBearing()).div(collateralizationRatio);
+        uint256 investmentTokenAmountToMint = yieldBearingBalance.mul(getWantPerYieldBearing()).div(currentCollateralizationRatio);
         //Check if amount of dai to borrow is above debtFloor. If not, swap everything to want and return.
         if ( investmentTokenAmountToMint <= debtFloor(ilk_yieldBearing).add(1e15)){
             _swapYieldBearingToWant(balanceOfYieldBearing());
+            yieldBearingBalance = balanceOfYieldBearing();
             return;
         }
+        //Make sure to always mint enough to repay the flashloan
+        investmentTokenAmountToMint = Math.min(investmentTokenAmountToMint, flashloanRepayAmount);
         //Check allowance to lock collateral 
         _checkAllowance(gemJoinAdapter, address(yieldBearing), yieldBearingBalance);
         //Lock collateral and mint dai to repay flashmint
@@ -415,7 +434,27 @@ library MakerDaiDelegateLib {
             debtForCdp(cdpId, ilk_yieldBearing)
         );
         //want=dai: nothing further necessary
+    }
 
+    
+    function uint256ToString(uint256 _i) internal pure returns (string memory _uintAsString) {
+        uint256 number = _i;
+        if (number == 0) {
+            return "0";
+        }
+        uint256 j = number;
+        uint256 len;
+        while (j != 0) {
+            len++;
+            j /= 10;
+        }
+        bytes memory bstr = new bytes(len);
+        uint256 k = len - 1;
+        while (number != 0) {
+            bstr[k--] = byte(uint8(48 + number % 10));
+            number /= 10;
+        }
+        return string(bstr);
     }
 
     //get amount of Want in Wei that is received for 1 yieldBearing
