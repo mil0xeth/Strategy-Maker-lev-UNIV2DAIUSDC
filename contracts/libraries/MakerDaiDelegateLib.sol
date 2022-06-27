@@ -404,9 +404,7 @@ library MakerDaiDelegateLib {
         wipeAndFreeGem(gemJoinAdapter, cdpId, balanceOfCdp(cdpId, ilk_yieldBearing), currentDebtPlusRounding);
         //All debt paid down, collateral unlocked
         //Calculate leverage+1 to know how much totalRequestedInYieldBearing to swap for borrowToken
-        //uint256 currentCollateralizationRatio = getPessimisticRatioOfCdpWithExternalPrice(cdpId,ilk_yieldBearing,getWantPerYieldBearing(),WAD);
-        uint256 currentCollateralizationRatio = targetCollateralizationRatio;
-        uint256 leveragePlusOne = (RAY.mul(WAD).div((currentCollateralizationRatio.mul(1e9).sub(RAY)))).add(WAD);
+        uint256 leveragePlusOne = (RAY.mul(WAD).div((targetCollateralizationRatio.mul(1e9).sub(RAY)))).add(WAD);
         uint256 totalRequestedInYieldBearing = wantAmountRequested.mul(leveragePlusOne).div(getWantPerYieldBearing());
         //Maximum of all yieldBearing can be requested
         totalRequestedInYieldBearing = Math.min(totalRequestedInYieldBearing, balanceOfYieldBearing());
