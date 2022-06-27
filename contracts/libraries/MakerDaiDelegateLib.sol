@@ -87,7 +87,7 @@ library MakerDaiDelegateLib {
 
     PSMLike public constant psm = PSMLike(0x89B78CfA322F6C5dE0aBcEecab66Aee45393cC5A) ;
 
-    IERC20 internal constant investmentToken = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
+    IERC20 internal constant borrowToken = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
 
     //MAKER Flashmint:
     IERC3156FlashLender public constant flashmint = IERC3156FlashLender(0x1EB4CF3A948E7D72A198fe073cCb8C7a948cD853);
@@ -350,25 +350,25 @@ library MakerDaiDelegateLib {
 
     function wind(
         uint256 wantAmountInitial,
-        uint256 collateralizationRatio,
+        uint256 targetCollateralizationRatio,
         uint256 cdpId
     ) public {
         wantAmountInitial = Math.min(wantAmountInitial, balanceOfWant());
-        //Calculate how much investmentToken to mint to leverage up to collateralization ratio:
-        uint256 flashloanAmount = wantAmountInitial.mul(RAY).div(collateralizationRatio.mul(1e9).sub(RAY));
+        //Calculate how much borrowToken to mint to leverage up to targetCollateralizationRatio:
+        uint256 flashloanAmount = wantAmountInitial.mul(RAY).div(targetCollateralizationRatio.mul(1e9).sub(RAY));
         VatLike vat = VatLike(manager.vat());
         flashloanAmount = Math.min(flashloanAmount, _forceMintWithinLimits(vat, ilk_yieldBearing, flashloanAmount, debtForCdp(cdpId, ilk_yieldBearing)));
         //Check if amount of dai to borrow is above debtFloor
         if ( (debtForCdp(cdpId, ilk_yieldBearing).add(flashloanAmount)) <= debtFloor(ilk_yieldBearing).add(1e15)){
             return;
         }
-        bytes memory data = abi.encode(Action.WIND, cdpId, wantAmountInitial, flashloanAmount, collateralizationRatio); 
+        bytes memory data = abi.encode(Action.WIND, cdpId, wantAmountInitial, flashloanAmount, targetCollateralizationRatio); 
         _initFlashLoan(data, flashloanAmount);
     }
     
     function unwind(
         uint256 wantAmountRequested,
-        uint256 currentCollateralizationRatio,
+        uint256 targetCollateralizationRatio,
         uint256 cdpId
     ) public {
         if (balanceOfCdp(cdpId, ilk_yieldBearing) == 0){
@@ -376,12 +376,12 @@ library MakerDaiDelegateLib {
         }
         //Paying off the full debt it's common to experience Vat/dust reverts: we circumvent this with add 1 Wei to the amount to be paid
         uint256 flashloanAmount = debtForCdp(cdpId, ilk_yieldBearing).add(1);
-        bytes memory data = abi.encode(Action.UNWIND, cdpId, wantAmountRequested, flashloanAmount, currentCollateralizationRatio);
+        bytes memory data = abi.encode(Action.UNWIND, cdpId, wantAmountRequested, flashloanAmount, targetCollateralizationRatio);
         //Always flashloan entire debt to pay off entire debt:
         _initFlashLoan(data, flashloanAmount);
     }
 
-    function _wind(uint256 cdpId, uint256 flashloanRepayAmount, uint256 wantAmountInitial, uint256 collateralizationRatio) public {
+    function _wind(uint256 cdpId, uint256 flashloanRepayAmount, uint256 wantAmountInitial, uint256) public {
         //repayAmount includes any fees
         uint256 yieldBearingAmountToLock = _swapWantToYieldBearing(balanceOfWant());
         //Check allowance to lock collateral 
@@ -396,14 +396,16 @@ library MakerDaiDelegateLib {
         );
     }
 
-    function _unwind(uint256 cdpId, uint256 flashloanRepayAmount, uint256 wantAmountRequested, uint256 currentCollateralizationRatio) public {
+    function _unwind(uint256 cdpId, uint256 flashloanRepayAmount, uint256 wantAmountRequested, uint256 targetCollateralizationRatio) public {
         //Repay entire debt, to then take debt again later:
-        //Check allowance for repaying investmentToken Debt
+        //Check allowance for repaying borrowToken Debt
         uint256 currentDebtPlusRounding = debtForCdp(cdpId, ilk_yieldBearing).add(1);
-        _checkAllowance(daiJoinAddress(), address(investmentToken), currentDebtPlusRounding);
+        _checkAllowance(daiJoinAddress(), address(borrowToken), currentDebtPlusRounding);
         wipeAndFreeGem(gemJoinAdapter, cdpId, balanceOfCdp(cdpId, ilk_yieldBearing), currentDebtPlusRounding);
         //All debt paid down, collateral unlocked
-        //Calculate leverage+1 to know how much totalRequestedInYieldBearing to swap for investmentToken
+        //Calculate leverage+1 to know how much totalRequestedInYieldBearing to swap for borrowToken
+        //uint256 currentCollateralizationRatio = getPessimisticRatioOfCdpWithExternalPrice(cdpId,ilk_yieldBearing,getWantPerYieldBearing(),WAD);
+        uint256 currentCollateralizationRatio = targetCollateralizationRatio;
         uint256 leveragePlusOne = (RAY.mul(WAD).div((currentCollateralizationRatio.mul(1e9).sub(RAY)))).add(WAD);
         uint256 totalRequestedInYieldBearing = wantAmountRequested.mul(leveragePlusOne).div(getWantPerYieldBearing());
         //Maximum of all yieldBearing can be requested
@@ -412,17 +414,17 @@ library MakerDaiDelegateLib {
         _swapYieldBearingToWant(totalRequestedInYieldBearing);
         //Want amount requested now in wallet
 
-        //Lock collateral and borrow dai equivalent to amount given by currentCollateralizationRatio:
+        //Lock collateral and borrow dai equivalent to amount given by targetCollateralizationRatio:
         uint256 yieldBearingBalance = balanceOfYieldBearing();
-        uint256 investmentTokenAmountToMint = yieldBearingBalance.mul(getWantPerYieldBearing()).div(currentCollateralizationRatio);
+        uint256 borrowTokenAmountToMint = yieldBearingBalance.mul(getWantPerYieldBearing()).div(targetCollateralizationRatio);
         //Check if amount of dai to borrow is above debtFloor. If not, swap everything to want and return.
-        if ( investmentTokenAmountToMint <= debtFloor(ilk_yieldBearing).add(1e15)){
+        if ( borrowTokenAmountToMint <= debtFloor(ilk_yieldBearing).add(1e15)){
             _swapYieldBearingToWant(balanceOfYieldBearing());
             yieldBearingBalance = balanceOfYieldBearing();
             return;
         }
         //Make sure to always mint enough to repay the flashloan
-        investmentTokenAmountToMint = Math.min(investmentTokenAmountToMint, flashloanRepayAmount);
+        borrowTokenAmountToMint = Math.min(borrowTokenAmountToMint, flashloanRepayAmount);
         //Check allowance to lock collateral 
         _checkAllowance(gemJoinAdapter, address(yieldBearing), yieldBearingBalance);
         //Lock collateral and mint dai to repay flashmint
@@ -430,7 +432,7 @@ library MakerDaiDelegateLib {
             gemJoinAdapter,
             cdpId,
             yieldBearingBalance,
-            investmentTokenAmountToMint,
+            borrowTokenAmountToMint,
             debtForCdp(cdpId, ilk_yieldBearing)
         );
         //want=dai: nothing further necessary
@@ -477,12 +479,12 @@ library MakerDaiDelegateLib {
 
     /*
     //want=usdc
-    function balanceOfInvestmentToken() public view returns (uint256) {
-        return investmentToken.balanceOf(address(this));
+    function balanceOfBorrowToken() public view returns (uint256) {
+        return borrowToken.balanceOf(address(this));
     }
-    //DYDX requires a minimum of a few wei to use Flashloan for investmentToken. Create 1000 wei floor of investmentToken to allow flashloan anytime:
-    function balanceOfInvestmentToken() public view returns (uint256) {
-        uint256 tokenBalance = investmentToken.balanceOf(address(this));
+    //DYDX requires a minimum of a few wei to use Flashloan for borrowToken. Create 1000 wei floor of borrowToken to allow flashloan anytime:
+    function balanceOfBorrowToken() public view returns (uint256) {
+        uint256 tokenBalance = borrowToken.balanceOf(address(this));
         if (tokenBalance > 1000) {
             tokenBalance = tokenBalance.sub(1000);
         } else {
@@ -499,12 +501,12 @@ library MakerDaiDelegateLib {
         /*
         bool useDYDX = true;
         if (useDYDX == true) {
-            uint256 amountInSolo = investmentToken.balanceOf(SOLO);
+            uint256 amountInSolo = borrowToken.balanceOf(SOLO);
             ISoloMargin solo = ISoloMargin(SOLO);
             uint256 numMarkets = solo.getNumMarkets();
             //dyDxMarketID for DAI is 3.
             uint256 dyDxMarketId = 3;
-            _checkAllowance(address(SOLO), address(investmentToken), amount);
+            _checkAllowance(address(SOLO), address(borrowToken), amount);
             require(amountInSolo >= amount, "NOT ENOUGH FUNDS IN SOLO");
             Actions.ActionArgs[] memory operations = new Actions.ActionArgs[](3);
             operations[0] = _getWithdrawAction(dyDxMarketId, amount);
@@ -517,8 +519,8 @@ library MakerDaiDelegateLib {
         }
         */
         //Flashmint implementation:
-        _checkAllowance(address(flashmint), address(investmentToken), amount);
-        flashmint.flashLoan(address(this), address(investmentToken), amount, data);
+        _checkAllowance(address(flashmint), address(borrowToken), amount);
+        flashmint.flashLoan(address(this), address(borrowToken), amount, data);
     }
 
     function _checkAllowance(

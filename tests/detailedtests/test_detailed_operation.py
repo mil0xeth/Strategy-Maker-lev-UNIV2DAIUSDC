@@ -22,9 +22,6 @@ def test_operation(chain, token, vault, strategy, user, amount, gov, RELATIVE_AP
     vault.withdraw(vault.balanceOf(user), user, 100, {"from": user})
     assert (pytest.approx(token.balanceOf(user), rel=RELATIVE_APPROX_LOSSY) == user_balance_before)
 
-    assert 0 == 1
-
-
 def test_emergency_exit(
     dai, gemJoinAdapter, chain, token, vault, strategy, user, amount, gov, RELATIVE_APPROX_LOSSY
 ):
@@ -184,7 +181,7 @@ def disabled_profitable_harvest_BIG(
     assert vault.totalAssets() > amount
 
 
-def test_change_debt(token_whale, wsteth, steth, chain, gov, token, vault, strategy, user, amount, RELATIVE_APPROX_LOSSY):
+def disabled_change_debt(token_whale, yieldBearing,  chain, gov, token, vault, strategy, user, amount, RELATIVE_APPROX_LOSSY):
     # Deposit to the vault and harvest
     assert vault.totalAssets() == 0
     assert token.balanceOf(vault) == 0

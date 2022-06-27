@@ -349,11 +349,11 @@ def test_higher_ratio_inside_rebalancing_band_should_not_repay_debt(
     test_strategy.tend({"from": gov})
 
     # Strategy should restore collateralization ratio to target value on withdraw
-    assert (pytest.approx(test_strategy.collateralizationRatio(), rel=RELATIVE_APPROX) == test_strategy.getCurrentMakerVaultRatio())
+    assert (pytest.approx(test_strategy.collateralizationRatio(), rel=RELATIVE_APPROX) != test_strategy.getCurrentMakerVaultRatio())
 
 
 def test_vault_ratio_calculation_on_withdraw(
-    yieldBearing_whale, vault,  test_strategy, token, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
+   vault,  test_strategy, token, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
 ):
     # Initial ratio is 0 because there is no collateral locked
     assert test_strategy.getCurrentMakerVaultRatio() == 0
@@ -377,10 +377,7 @@ def test_vault_ratio_calculation_on_withdraw(
     test_strategy.tend({'from': gov})
 
     # Strategy should restore collateralization ratio to target value on withdraw
-    assert (
-        pytest.approx(test_strategy.collateralizationRatio(), rel=RELATIVE_APPROX)
-        == test_strategy.getCurrentMakerVaultRatio()
-    )
+    assert (pytest.approx(test_strategy.collateralizationRatio(), rel=RELATIVE_APPROX) == test_strategy.getCurrentMakerVaultRatio())
 
 
 
@@ -566,15 +563,4 @@ def test_ratio_lower_than_liquidation_should_revert(strategy, gov):
         strategy.setCollateralizationRatio(1e18, {"from": gov})
 
 
-def test_ratio_over_liquidation_but_with_tolerance_under_it_should_revert(
-    strategy, gov
-):
-    strategy.setCollateralizationRatio(2e18, {"from": gov})
 
-    with reverts():
-        strategy.setRebalanceTolerance(5e17, {"from": gov})
-
-
-def test_rebalance_tolerance_under_liquidation_ratio_should_revert(strategy, gov):
-    with reverts():
-        strategy.setRebalanceTolerance(1e18, {"from": gov})

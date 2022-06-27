@@ -145,10 +145,10 @@ def token_whale_BIG(accounts, wantNr, dai_whale):
     yield dai_whale
 
 @pytest.fixture
-def yieldBearing_whale(accounts, yieldBearingNr, token_whale, yieldBearing, token, partnerToken):
-    token.approve(yieldBearing, 1000000e18, {"from": token_whale})
-    partnerToken.approve(yieldBearing, 1000000e6, {"from": token_whale})
-    yieldBearing.mint(yieldBearing.getMintAmounts(token.balanceOf(this)*0.1, partnerToken.balanceOf(this)*0.1)[2], token_whale, {"from": token_whale})
+def yieldBearing_whale(accounts, yieldBearingNr, token_whale, yieldBearing, token, partnerToken, strategy):
+    token.approve(yieldBearing, 100000000000000000000e18, {"from": token_whale})
+    partnerToken.approve(yieldBearing, 10000000000000000000000e6, {"from": token_whale})
+    yieldBearing.mint(yieldBearing.getMintAmounts(token.balanceOf(token_whale)*0.1, partnerToken.balanceOf(token_whale)*0.1)[2], token_whale, {"from": token_whale})
     yield token_whale
 
 @pytest.fixture

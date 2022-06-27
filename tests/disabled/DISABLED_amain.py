@@ -6,7 +6,6 @@ def test_collateralization_ratio_changes_with_vault_functions(
 ):
 
     test_strategy = strategy
-    test_strategy.setReinvestmentLeverageComponent(0, {'from': gov})
     # Initial ratio is 0 because there is no collateral locked
     assert test_strategy.getCurrentMakerVaultRatio() == 0
     assert vault.totalAssets() == 0
@@ -30,14 +29,14 @@ def test_collateralization_ratio_changes_with_vault_functions(
     chain.sleep(1)
     test_strategy.harvest({"from": gov})
     assert test_strategy.collateralizationRatio() == 2e18
-    assert test_strategy.getCurrentMakerVaultRatio() == 2e18
+    assert pytest.approx(test_strategy.getCurrentMakerVaultRatio(), rel=RELATIVE_APPROX_LOSSY) == 2e18
     assert test_strategy.tendTrigger(1) == False
 
     #deposit - whale: 250 WETH
     token.approve(vault, 2 ** 256 - 1, {"from": token_whale})
     vault.deposit(250 * (10 ** token.decimals()), {"from": token_whale})
     assert test_strategy.collateralizationRatio() == 2e18
-    assert test_strategy.getCurrentMakerVaultRatio() == 2e18
+    assert pytest.approx(test_strategy.getCurrentMakerVaultRatio(), rel=RELATIVE_APPROX_LOSSY) == 2e18
     assert test_strategy.tendTrigger(1) == False
 
     # Harvest = send funds through strategy
@@ -70,9 +69,9 @@ def test_collateralization_ratio_changes_with_vault_functions(
 
 
     #Test Rebalance Tolerance:
-    #test_strategy.setRebalanceTolerance()
 
     #Change coll ratio 2-->2.12-->2.14 --> 2.15 to check when it changes
+    test_strategy.setRebalanceTolerance(0.15*1e18, {"from": gov})
     test_strategy.setCollateralizationRatio(2.12e18, {"from": gov})
     assert pytest.approx(test_strategy.collateralizationRatio(), rel=RELATIVE_APPROX_LOSSY) == 2.12e18
     assert pytest.approx(test_strategy.getCurrentMakerVaultRatio(), rel=RELATIVE_APPROX_LOSSY) == 2e18
@@ -116,8 +115,6 @@ def test_collateralization_ratio_changes_with_vault_functions(
 
 
 
-    #setLeverage to 50%
-    test_strategy.setReinvestmentLeverageComponent(5000, {'from': gov})
     #deposit - whale: 100 WETHID
     latestdeposit = 100e18
     collratiobefore = test_strategy.collateralizationRatio()
@@ -140,7 +137,6 @@ def test_collateralization_ratio_changes_with_vault_functions_not_full_withdrawa
 ):
 
     test_strategy = strategy
-    test_strategy.setReinvestmentLeverageComponent(0, {'from': gov})
     # Initial ratio is 0 because there is no collateral locked
     assert test_strategy.getCurrentMakerVaultRatio() == 0
     assert vault.totalAssets() == 0
@@ -250,8 +246,7 @@ def test_collateralization_ratio_changes_with_vault_functions_not_full_withdrawa
 
 
 
-    #setLeverage to 50%
-    test_strategy.setReinvestmentLeverageComponent(5000, {'from': gov})
+
     #deposit - whale: 100 WETHID
     latestdeposit = 100e18
     collratiobefore = test_strategy.collateralizationRatio()
@@ -274,7 +269,6 @@ def test_collateralization_ratio_changes_with_vault_functions_not_full_withdrawa
 ):
 
     test_strategy = strategy
-    test_strategy.setReinvestmentLeverageComponent(0, {'from': gov})
     # Initial ratio is 0 because there is no collateral locked
     assert test_strategy.getCurrentMakerVaultRatio() == 0
     assert vault.totalAssets() == 0
@@ -298,14 +292,14 @@ def test_collateralization_ratio_changes_with_vault_functions_not_full_withdrawa
     chain.sleep(1)
     test_strategy.harvest({"from": gov})
     assert test_strategy.collateralizationRatio() == 2e18
-    assert test_strategy.getCurrentMakerVaultRatio() == 2e18
+    assert pytest.approx(test_strategy.getCurrentMakerVaultRatio(), rel=RELATIVE_APPROX_LOSSY) == 2e18
     assert test_strategy.tendTrigger(1) == False
 
     #deposit - whale: 250 WETH
     token.approve(vault, 2 ** 256 - 1, {"from": token_whale})
     vault.deposit(250 * (10 ** token.decimals()), {"from": token_whale})
     assert test_strategy.collateralizationRatio() == 2e18
-    assert test_strategy.getCurrentMakerVaultRatio() == 2e18
+    assert pytest.approx(test_strategy.getCurrentMakerVaultRatio(), rel=RELATIVE_APPROX_LOSSY) == 2e18
     assert test_strategy.tendTrigger(1) == False
 
     # Harvest = send funds through strategy
@@ -384,8 +378,7 @@ def test_collateralization_ratio_changes_with_vault_functions_not_full_withdrawa
 
 
 
-    #setLeverage to 50%
-    test_strategy.setReinvestmentLeverageComponent(5000, {'from': gov})
+
     #deposit - whale: 100 WETHID
     latestdeposit = 100e18
     collratiobefore = test_strategy.collateralizationRatio()

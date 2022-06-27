@@ -32,7 +32,7 @@ def DISABLED_WETH_test_maker_vault_collateral_should_match_strategy(Strategy, cl
 
 
 def test_dai_should_be_minted_after_depositing_collateral(
-    strategy, vault, yvDAI, token, token_whale, dai, gov
+    strategy, vault, token, token_whale, dai, gov
 ):
     # Make sure there is no balance before the first deposit
     assert yvDAI.balanceOf(strategy) == 0

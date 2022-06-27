@@ -38,7 +38,7 @@ contract Strategy is BaseStrategy {
 
     //DYDX Flashloan
     //address internal constant SOLO = 0x1E0447b19BB6EcFdAe1e4AE1694b0C3659614e4e;
-    IERC20 internal constant investmentToken = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
+    IERC20 internal constant borrowToken = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
 
     //----------- MAKER INIT    
     // Units used in Maker contracts
@@ -201,8 +201,8 @@ contract Strategy is BaseStrategy {
                 .add(balanceOfYieldBearing().add(balanceOfMakerVault()).mul(getWantPerYieldBearing()).div(WAD))
                 .sub(balanceOfDebt());
                 //want=usdc:
-                //.add(_convertInvestmentTokenAmountToWant(balanceOfInvestmentToken()))  // free DAI balance in wallet --> WANT
-                //.sub(_convertInvestmentTokenAmountToWant(balanceOfDebt()));  //DAI debt of maker --> WANT
+                //.add(_convertBorrowTokenAmountToWant(balanceOfBorrowToken()))  // free DAI balance in wallet --> WANT
+                //.sub(_convertBorrowTokenAmountToWant(balanceOfDebt()));  //DAI debt of maker --> WANT
     }
 
     function prepareReturn(uint256 _debtOutstanding)
@@ -250,7 +250,7 @@ contract Strategy is BaseStrategy {
             currentRatio > collateralizationRatio.add(rebalanceTolerance)
         ) {
             // Mint the maximum DAI possible for the locked collateral            
-            _lockCollateralAndMintDai(0, _investmentTokenAmountToMint(balanceOfMakerVault()).sub(balanceOfDebt()));
+            _lockCollateralAndMintDai(0, _borrowTokenAmountToMint(balanceOfMakerVault()).sub(balanceOfDebt()));
         }
 
     }
@@ -360,7 +360,7 @@ contract Strategy is BaseStrategy {
         (Action action, uint256 _cdpId, uint256 _wantAmountInitialOrRequested, uint256 flashloanAmount, uint256 _collateralizationRatio) = abi.decode(data, (Action, uint256, uint256, uint256, uint256));
         //amount = flashloanAmount, then add fee
         amount = amount.add(fee);
-        _checkAllowance(address(flashmint), address(investmentToken), amount);
+        _checkAllowance(address(flashmint), address(borrowToken), amount);
         if (action == Action.WIND) {
             MakerDaiDelegateLib._wind(_cdpId, amount, _wantAmountInitialOrRequested, _collateralizationRatio);
         } else if (action == Action.UNWIND) {
@@ -399,7 +399,7 @@ contract Strategy is BaseStrategy {
         MakerDaiDelegateLib.unwind(wantAmountToRepay, collateralizationRatio, cdpId);
     }
 
-    function _investmentTokenAmountToMint(uint256 _amount) internal returns (uint256) {
+    function _borrowTokenAmountToMint(uint256 _amount) internal returns (uint256) {
         return _amount.mul(getWantPerYieldBearing()).mul(WAD).div(collateralizationRatio).div(WAD);
     }
 
@@ -432,12 +432,12 @@ contract Strategy is BaseStrategy {
 
     /*
     //want=usdc
-    function balanceOfInvestmentToken() public view returns (uint256) {
-        return investmentToken.balanceOf(address(this));
+    function balanceOfBorrowToken() public view returns (uint256) {
+        return borrowToken.balanceOf(address(this));
     }
-    //DYDX requires a minimum of a few wei to use Flashloan for investmentToken. Create 1000 wei floor of investmentToken to allow flashloan anytime:
-    function balanceOfInvestmentToken() public view returns (uint256) {
-        uint256 tokenBalance = investmentToken.balanceOf(address(this));
+    //DYDX requires a minimum of a few wei to use Flashloan for borrowToken. Create 1000 wei floor of borrowToken to allow flashloan anytime:
+    function balanceOfBorrowToken() public view returns (uint256) {
+        uint256 tokenBalance = borrowToken.balanceOf(address(this));
         if (tokenBalance > 1000) {
             tokenBalance = tokenBalance.sub(1000);
         } else {
@@ -498,7 +498,7 @@ contract Strategy is BaseStrategy {
 
     // ----------------- TOKEN CONVERSIONS -----------------
     /*
-    function _convertInvestmentTokenAmountToWant(uint256 _amount)
+    function _convertBorrowTokenAmountToWant(uint256 _amount)
         internal
         view
         returns (uint256)
