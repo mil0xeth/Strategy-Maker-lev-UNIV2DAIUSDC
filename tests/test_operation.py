@@ -4,7 +4,7 @@ import pytest
 
 
 def test_operation(
-    gov, chain, accounts, token, vault, strategy, user, strategist, amount, RELATIVE_APPROX
+    gov, chain, accounts, token, vault, strategy, user, amount, RELATIVE_APPROX, token_whale
 ):
     # Deposit to the vault
     user_balance_before = token.balanceOf(user)
@@ -17,14 +17,13 @@ def test_operation(
     strategy.harvest({"from": gov})
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
+
     # tend({"from": gov})
     strategy.tend({"from": gov})
 
     # withdrawal
     vault.withdraw({"from": user})
-    assert (
-        pytest.approx(token.balanceOf(user), rel=RELATIVE_APPROX) == user_balance_before
-    )
+    assert ( pytest.approx(token.balanceOf(user), rel=RELATIVE_APPROX) == user_balance_before )
 
 
 def test_emergency_exit(

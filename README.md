@@ -1,6 +1,6 @@
 # Strategy-Maker-lev-GUNIV3DAIUSDC
-- The strategy uses the want token (either USDC or DAI; here: DAI) to mint GUNIV3DAIUSDC (either 0.05% or 0.01% fees) using Maker's PSM with 0% slippage (DAI 1:1 USDC) to then collateralize G-UNI on Maker and leverage with Maker's Flashmint (a Flashloan module) up to 50x (102% collateralization ratio).
-- The strategy is suitable for yvDAI and yvUSDC vaults for both the G-UNI 0.01% and 0.05% fee pools with a coming update to allow USDC as the want token.
+- The strategy uses the want token (here: DAI) to mint GUNIV3DAIUSDC (either 0.05% or 0.01% fees) using Maker's PSM with 0% slippage (DAI 1:1 USDC) to then collateralize G-UNI on Maker and leverage with Maker's Flashmint (a Flashloan module) up to 50x (102% collateralization ratio).
+- The strategy is suitable for yvDAIfor both the G-UNI 0.01% and 0.05% fee pools.
 
 ## Installation and Setup
 

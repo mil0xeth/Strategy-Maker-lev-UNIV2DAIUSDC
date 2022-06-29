@@ -6,7 +6,7 @@ import "./Strategy.sol";
 
 contract MakerDaiDelegateCloner {
     using SafeERC20 for IERC20;
-    address payable public immutable original;
+    address public immutable original;
 
     event Cloned(address indexed clone);
     event Deployed(address indexed original);
@@ -59,7 +59,7 @@ contract MakerDaiDelegateCloner {
  //       address _wantToUSDOSMProxy
  //       address _yieldBearingToUSDOSMProxy
  //       address _chainlinkWantToETHPriceFeed
-    ) external returns (address payable newStrategy) {
+    ) external returns (address newStrategy) {
         // Copied from https://github.com/optionality/clone-factory/blob/master/contracts/CloneFactory.sol
         bytes20 addressBytes = bytes20(original);
         assembly {

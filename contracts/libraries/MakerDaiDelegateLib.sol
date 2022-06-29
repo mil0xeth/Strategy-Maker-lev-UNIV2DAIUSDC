@@ -319,17 +319,7 @@ library MakerDaiDelegateLib {
 
     // Checks if there is at least MIN_MINTABLE dai available to be minted
     function isDaiAvailableToMint(bytes32 ilk) public view returns (bool) {
-        VatLike vat = VatLike(manager.vat());
-        (uint256 Art, uint256 rate, , uint256 line, ) = vat.ilks(ilk);
-
-        // Total debt in [rad] (wad * ray)
-        uint256 vatDebt = Art.mul(rate);
-
-        if (vatDebt >= line || line.sub(vatDebt).div(RAY) < MIN_MINTABLE) {
-            return false;
-        }
-
-        return true;
+        return balanceOfDaiAvailableToMint(ilk) >= MIN_MINTABLE;
     }
 
     
