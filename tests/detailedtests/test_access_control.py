@@ -129,25 +129,6 @@ def test_emergency_debt_repayment_acl(
         strategy.emergencyDebtRepayment(strategy.estimatedTotalAssets(), {"from": user})
 
 
-def test_set_max_acceptable_base_fee_acl(
-    strategy, gov, strategist, management, guardian, user
-):
-    strategy.setMaxAcceptableBaseFee(100 * 1e9, {"from": gov})
-    assert strategy.maxAcceptableBaseFee() == 100 * 1e9
-
-    strategy.setMaxAcceptableBaseFee(200 * 1e9, {"from": strategist})
-    assert strategy.maxAcceptableBaseFee() == 200 * 1e9
-
-    strategy.setMaxAcceptableBaseFee(50 * 1e9, {"from": guardian})
-    assert strategy.maxAcceptableBaseFee() == 50 * 1e9
-
-    strategy.setMaxAcceptableBaseFee(75 * 1e9, {"from": management})
-    assert strategy.maxAcceptableBaseFee() == 75 * 1e9
-
-    with reverts("!authorized"):
-        strategy.setMaxAcceptableBaseFee(150 * 1e9, {"from": user})
-
-
 def DISABLED_repay_debt_acl(
     vault,
     strategy,

@@ -423,7 +423,7 @@ def ilk_yieldBearing(yieldBearingNr):
 
 @pytest.fixture(scope="session")
 def RELATIVE_APPROX():
-    yield 1e-5
+    yield 1e-4
 
 @pytest.fixture(scope="session")
 def RELATIVE_APPROX_LOSSY():

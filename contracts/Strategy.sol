@@ -2,18 +2,12 @@
 pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
 
-import {BaseStrategy} from "@yearnvaults/contracts/BaseStrategy.sol";
+import {BaseStrategy,StrategyParams} from "@yearnvaults/contracts/BaseStrategy.sol";
 import "@openzeppelin/contracts/math/Math.sol";
-import {
-    IERC20,
-    Address
-} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-
+import {IERC20,Address} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "./libraries/MakerDaiDelegateLib.sol";
-
 import "../interfaces/yearn/IBaseFee.sol";
 import "../interfaces/yearn/IVault.sol";
-
 import "../interfaces/GUNI/GUniPool.sol";
 
 contract Strategy is BaseStrategy {
@@ -45,9 +39,6 @@ contract Strategy is BaseStrategy {
     uint256 internal constant WAD = 10**18;
     uint256 internal constant RAY = 10**27;
 
-    // Provider to read current block's base fee
-    IBaseFee internal constant baseFeeProvider = IBaseFee(0xf8d0Ec04e94296773cE20eFbeeA82e76220cD549);
-
     // maker vault identifier
     uint256 public cdpId;
 
@@ -59,8 +50,8 @@ contract Strategy is BaseStrategy {
     // Allow the collateralization ratio to drift a bit in order to avoid cycles
     uint256 public rebalanceTolerance;
 
-    // Max acceptable base fee to take more debt or harvest
-    uint256 public maxAcceptableBaseFee;
+    bool internal forceHarvestTriggerOnce; // only set this to true when we want to trigger our keepers to harvest for us
+    uint256 public creditThreshold; // amount of credit in underlying tokens that will automatically trigger a harvest  
 
     // Maximum Single Trade possible
     uint256 public maxSingleTrade;
@@ -116,6 +107,9 @@ contract Strategy is BaseStrategy {
         //10M$ dai or usdc maximum trade
         minSingleTrade = 1 * 1e17;
 
+        creditThreshold = 1e6 * 1e18;
+        maxReportDelay = 21 days; // 21 days in seconds, if we hit this then harvestTrigger = True
+
         // Set health check to health.ychad.eth
         healthCheck = 0xDDCea799fF1699e98EDF118e0629A974Df7DF012;
 
@@ -124,30 +118,34 @@ contract Strategy is BaseStrategy {
 
         // Current ratio can drift (collateralizationRatio -f rebalanceTolerance, collateralizationRatio plus rebalanceTolerance)
         // Allow additional 0.001 in any direction (1035, 1045) by default
-        rebalanceTolerance = (9 * WAD) / 10000;
+        rebalanceTolerance = (10 * WAD) / 10000;
 
         // Minimum collateralization ratio for GUNIV3DAIUSDC is 102% == 1020
-        collateralizationRatio = (10220 * WAD) / 10000;
+        collateralizationRatio = (10230 * WAD) / 10000;
 
-        // Set max acceptable base fee to take on more debt to 60 gwei
-        //maxAcceptableBaseFee = 60 * 1e9;
-        maxAcceptableBaseFee = 1000 * 1e9;
     }
 
 
     // ----------------- SETTERS & MIGRATION -----------------
 
+    /////////////////// Manual harvest through keepers using KP3R instead of ETH:
+    function setForceHarvestTriggerOnce(bool _forceHarvestTriggerOnce)
+        external
+        onlyVaultManagers
+    {
+        forceHarvestTriggerOnce = _forceHarvestTriggerOnce;
+    }
+
+    function setCreditThreshold(uint256 _creditThreshold)
+        external
+        onlyVaultManagers
+    {
+        creditThreshold = _creditThreshold;
+    }
+
     function setMinMaxSingleTrade(uint256 _minSingleTrade, uint256 _maxSingleTrade) external onlyVaultManagers {
         minSingleTrade = _minSingleTrade;
         maxSingleTrade = _maxSingleTrade;
-    }
-
-    // Maximum acceptable base fee of current block to take on more debt
-    function setMaxAcceptableBaseFee(uint256 _maxAcceptableBaseFee)
-        external
-        onlyEmergencyAuthorized
-    {
-        maxAcceptableBaseFee = _maxAcceptableBaseFee;
     }
 
     // Target collateralization ratio to maintain within bounds
@@ -237,6 +235,9 @@ contract Strategy is BaseStrategy {
             _profit = _profit.sub(_loss);
             _loss = 0;
         }
+
+        // we're done harvesting, so reset our trigger if we used it
+        forceHarvestTriggerOnce = false;
     }
 
     function adjustPosition(uint256 _debtOutstanding) internal override {
@@ -301,7 +302,34 @@ contract Strategy is BaseStrategy {
         override
         returns (bool)
     {
-        return isCurrentBaseFeeAcceptable() && super.harvestTrigger(callCostInWei);
+        // Should not trigger if strategy is not active (no assets and no debtRatio). This means we don't need to adjust keeper job.
+        if (!isActive()) {
+            return false;
+        }
+
+        // check if the base fee gas price is higher than we allow. if it is, block harvests.
+        if (!isBaseFeeAcceptable()) {
+            return false;
+        }
+
+        // trigger if we want to manually harvest, but only if our gas price is acceptable
+        if (forceHarvestTriggerOnce) {
+            return true;
+        }
+
+        StrategyParams memory params = vault.strategies(address(this));
+        // harvest once we reach our maxDelay if our gas price is okay
+        if (block.timestamp.sub(params.lastReport) > maxReportDelay) {
+            return true;
+        }
+
+        // harvest our credit if it's above our threshold
+        if (vault.creditAvailable() > creditThreshold) {
+            return true;
+        }
+
+        // otherwise, we don't harvest
+        return false;
     }
 
     function tendTrigger(uint256 callCostInWei)
@@ -326,7 +354,7 @@ contract Strategy is BaseStrategy {
         return
             currentRatio > collateralizationRatio.add(rebalanceTolerance) &&
             balanceOfDebt() > 0 &&
-            isCurrentBaseFeeAcceptable() &&
+            isBaseFeeAcceptable() &&
             MakerDaiDelegateLib.isDaiAvailableToMint(ilk_yieldBearing);
     }
 
@@ -461,21 +489,19 @@ contract Strategy is BaseStrategy {
         return MakerDaiDelegateLib.getPessimisticRatioOfCdpWithExternalPrice(cdpId,ilk_yieldBearing,getWantPerYieldBearing(),WAD);
     }
 
-    // Check if current block's base fee is under max allowed base fee
-    function isCurrentBaseFeeAcceptable() public view returns (bool) {
-        uint256 baseFee;
-        try baseFeeProvider.basefee_global() returns (uint256 currentBaseFee) {
-            baseFee = currentBaseFee;
-        } catch {
-            // Useful for testing until ganache supports london fork
-            // Hard-code current base fee to 1000 gwei
-            // This should also help keepers that run in a fork without
-            // baseFee() to avoid reverting and potentially abandoning the job
-            baseFee = 1000 * 1e9;
-        }
-
-        return baseFee <= maxAcceptableBaseFee;
+    function getHypotheticalMakerVaultRatioWithMultiplier(uint256 _wantMultiplier, uint256 _otherTokenMultiplier) public view returns (uint256) {
+        //The Multipliers are basispoints 100.01 = +0.01% increase of DAI price. Multipliers of 10000 are returning the CurrentMakerVaultRatio()
+        //The returned tuple contains (DAI amount, USDC amount) - for want=dai:
+        (uint256 wantUnderlyingBalance, uint256 otherTokenUnderlyingBalance) = yieldBearing.getUnderlyingBalances();
+        uint256 hypotheticalWantPerYieldBearing = wantUnderlyingBalance.mul(_wantMultiplier).div(10000).add(otherTokenUnderlyingBalance.mul(_otherTokenMultiplier).div(10000).mul(1e12)).mul(WAD).div(yieldBearing.totalSupply());
+        return balanceOfMakerVault().mul(hypotheticalWantPerYieldBearing).div(balanceOfDebt().mul(_wantMultiplier));
     }
+
+    // check if the current baseFee is below our external target
+    function isBaseFeeAcceptable() internal view returns (bool) {
+        return IBaseFee(0xb5e1CAcB567d98faaDB60a1fD4820720141f064F).isCurrentBaseFeeAcceptable();
+    }
+
 
     // ----------------- INTERNAL CALCS -----------------
 

@@ -17,7 +17,6 @@ def test_operation(
     strategy.harvest({"from": gov})
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
-
     # tend({"from": gov})
     strategy.tend({"from": gov})
 
