@@ -16,9 +16,6 @@ import {
 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 
-//DYDX FLashloan
-//import "../../interfaces/DyDx/ISoloMargin.sol";
-
 //OSM
 import "../../interfaces/yearn/IOSMedianizer.sol";
 
@@ -91,9 +88,6 @@ library MakerDaiDelegateLib {
 
     //MAKER Flashmint:
     IERC3156FlashLender public constant flashmint = IERC3156FlashLender(0x1EB4CF3A948E7D72A198fe073cCb8C7a948cD853);
-
-    //DYDX Flashloan
-    address private constant SOLO = 0x1E0447b19BB6EcFdAe1e4AE1694b0C3659614e4e;
 
     // Units used in Maker contracts
     uint256 internal constant WAD = 10**18;
@@ -470,42 +464,11 @@ library MakerDaiDelegateLib {
     function balanceOfBorrowToken() public view returns (uint256) {
         return borrowToken.balanceOf(address(this));
     }
-    //DYDX requires a minimum of a few wei to use Flashloan for borrowToken. Create 1000 wei floor of borrowToken to allow flashloan anytime:
-    function balanceOfBorrowToken() public view returns (uint256) {
-        uint256 tokenBalance = borrowToken.balanceOf(address(this));
-        if (tokenBalance > 1000) {
-            tokenBalance = tokenBalance.sub(1000);
-        } else {
-            tokenBalance = 0;
-        }
-        return tokenBalance;
-    }
     */
 
     // ----------------- INTERNAL FUNCTIONS -----------------
 
         function _initFlashLoan(bytes memory data, uint256 amount) internal {
-        //DYDX Flashloan implementation for testing purposes - flashmint works flawlessly, but induces event scoping issues during debugging in brownie
-        /*
-        bool useDYDX = true;
-        if (useDYDX == true) {
-            uint256 amountInSolo = borrowToken.balanceOf(SOLO);
-            ISoloMargin solo = ISoloMargin(SOLO);
-            uint256 numMarkets = solo.getNumMarkets();
-            //dyDxMarketID for DAI is 3.
-            uint256 dyDxMarketId = 3;
-            _checkAllowance(address(SOLO), address(borrowToken), amount);
-            require(amountInSolo >= amount, "NOT ENOUGH FUNDS IN SOLO");
-            Actions.ActionArgs[] memory operations = new Actions.ActionArgs[](3);
-            operations[0] = _getWithdrawAction(dyDxMarketId, amount);
-            operations[1] = _getCallAction(data);
-            operations[2] = _getDepositAction(dyDxMarketId, amount.add(2));
-            Account.Info[] memory accountInfos = new Account.Info[](1);
-            accountInfos[0] = _getAccountInfo();
-            solo.operate(accountInfos, operations);
-            return;
-        }
-        */
         //Flashmint implementation:
         _checkAllowance(address(flashmint), address(borrowToken), amount);
         flashmint.flashLoan(address(this), address(borrowToken), amount, data);
@@ -651,74 +614,6 @@ library MakerDaiDelegateLib {
         // Adapters will automatically handle the difference of precision
         wad = amt.mul(10**(18 - GemJoinLike(gemJoin).dec()));
     }
-
-
-    //DYDX FlashLoanBase:
-    /*
-    function _getAccountInfo() internal view returns (Account.Info memory) {
-        return Account.Info({owner: address(this), number: 1});
-    }
-
-    function _getWithdrawAction(uint256 marketId, uint256 amount) internal view returns (Actions.ActionArgs memory) {
-        return
-            Actions.ActionArgs({
-                actionType: Actions.ActionType.Withdraw,
-                accountId: 0,
-                amount: Types.AssetAmount({
-                    sign: false,
-                    denomination: Types.AssetDenomination.Wei,
-                    ref: Types.AssetReference.Delta,
-                    value: amount
-                }),
-                primaryMarketId: marketId,
-                secondaryMarketId: 0,
-                otherAddress: address(this),
-                otherAccountId: 0,
-                data: ""
-            });
-    }
-
-    function _getCallAction(bytes memory data) internal view returns (Actions.ActionArgs memory) {
-        return
-            Actions.ActionArgs({
-                actionType: Actions.ActionType.Call,
-                accountId: 0,
-                amount: Types.AssetAmount({sign: false, denomination: Types.AssetDenomination.Wei, ref: Types.AssetReference.Delta, value: 0}),
-                primaryMarketId: 0,
-                secondaryMarketId: 0,
-                otherAddress: address(this),
-                otherAccountId: 0,
-                data: data
-            });
-    }
-
-    function _getDepositAction(uint256 marketId, uint256 amount) internal view returns (Actions.ActionArgs memory) {
-        return
-            Actions.ActionArgs({
-                actionType: Actions.ActionType.Deposit,
-                accountId: 0,
-                amount: Types.AssetAmount({
-                    sign: true,
-                    denomination: Types.AssetDenomination.Wei,
-                    ref: Types.AssetReference.Delta,
-                    value: amount
-                }),
-                primaryMarketId: marketId,
-                secondaryMarketId: 0,
-                otherAddress: address(this),
-                otherAccountId: 0,
-                data: ""
-            });
-    }
-    */
-
-
-
-
-
-
-
-
 
 
 }

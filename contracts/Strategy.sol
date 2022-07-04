@@ -30,8 +30,6 @@ contract Strategy is BaseStrategy {
     //Flashmint:
     address internal constant flashmint = 0x1EB4CF3A948E7D72A198fe073cCb8C7a948cD853;
 
-    //DYDX Flashloan
-    //address internal constant SOLO = 0x1E0447b19BB6EcFdAe1e4AE1694b0C3659614e4e;
     IERC20 internal constant borrowToken = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
 
     //----------- MAKER INIT    
@@ -403,23 +401,6 @@ contract Strategy is BaseStrategy {
         return keccak256("ERC3156FlashBorrower.onFlashLoan");
     }
 
-    /*
-    //DYDX Flashloan Callback for testing purposes - flashmint works flawlessly, but induces event scoping issues during debugging in brownie
-    function callFunction(
-        address sender,
-        Account.Info memory account,
-        bytes memory data
-    ) external {
-        (Action action, uint256 _cdpId, uint256 _wantAmountInitialOrRequested, uint256 _flashloanAmount, uint256 _collateralizationRatio) = abi.decode(data, (Action, uint256, uint256, uint256, uint256));
-        if (action == Action.WIND) {
-            MakerDaiDelegateLib._wind(_cdpId, _flashloanAmount.add(2), _wantAmountInitialOrRequested, _collateralizationRatio);
-        } else if (action == Action.UNWIND) {
-            MakerDaiDelegateLib._unwind(_cdpId, _flashloanAmount.add(2), _wantAmountInitialOrRequested, _collateralizationRatio);
-        }
-    }   
-    */
-
-
     // ----------------- INTERNAL FUNCTIONS SUPPORT -----------------
 
     function _borrowTokenAmountToMint(uint256 _amount) internal returns (uint256) {
@@ -458,16 +439,6 @@ contract Strategy is BaseStrategy {
     //want=usdc
     function balanceOfBorrowToken() public view returns (uint256) {
         return borrowToken.balanceOf(address(this));
-    }
-    //DYDX requires a minimum of a few wei to use Flashloan for borrowToken. Create 1000 wei floor of borrowToken to allow flashloan anytime:
-    function balanceOfBorrowToken() public view returns (uint256) {
-        uint256 tokenBalance = borrowToken.balanceOf(address(this));
-        if (tokenBalance > 1000) {
-            tokenBalance = tokenBalance.sub(1000);
-        } else {
-            tokenBalance = 0;
-        }
-        return tokenBalance;
     }
     */
 
