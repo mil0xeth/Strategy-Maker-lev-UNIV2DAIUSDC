@@ -116,7 +116,7 @@ contract Strategy is BaseStrategy {
 
         // Current ratio can drift (collateralizationRatio -f rebalanceTolerance, collateralizationRatio plus rebalanceTolerance)
         // Allow additional 0.001 in any direction (1035, 1045) by default
-        rebalanceTolerance = (10 * WAD) / 10000;
+        rebalanceTolerance = (20 * WAD) / 10000;
 
         // Minimum collateralization ratio for GUNIV3DAIUSDC is 102% == 1020
         collateralizationRatio = (10230 * WAD) / 10000;
