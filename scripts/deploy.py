@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from brownie import Strategy, accounts, config, network, project, web3
+from brownie import Strategy, MakerDaiDelegateLib, accounts, config, network, project, web3
 from eth_utils import is_checksum_address
 import click
 
@@ -18,7 +18,8 @@ def get_address(msg: str, default: str = None) -> str:
 
         if is_checksum_address(val):
             return val
-        elif addr := web3.ens.address(val):
+        elif web3.ens.address(val):
+            addr = web3.ens.address(val)
             click.echo(f"Found ENS '{val}' [{addr}]")
             return addr
 
@@ -55,4 +56,5 @@ def main():
     if input("Deploy Strategy? y/[N]: ").lower() != "y":
         return
 
+    lib = MakerDaiDelegateLib.deploy({"from": dev})
     strategy = Strategy.deploy(vault,  "Strategy-Maker-lev-GUNIV3DAIUSDC-0.01%", {"from": dev}, publish_source=publish_source)
