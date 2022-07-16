@@ -62,6 +62,7 @@ def test_basic_shutdown(
 
     strategy.harvest({"from": gov})  ## Remove funds from strategy
 
-    assert token.balanceOf(strategy) == 0
+    #usdc rounding not 0 of usdc after exit
+    assert token.balanceOf(strategy) < 0.01*1e6
     assert pytest.approx(token.balanceOf(vault), rel=RELATIVE_APPROX) == amount  ## The vault has all funds
     ## NOTE: May want to tweak this based on potential loss during migration

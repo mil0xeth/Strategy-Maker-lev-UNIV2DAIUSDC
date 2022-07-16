@@ -34,7 +34,6 @@ def test_aauniswapV3_profit(
     strategyCollateralizationRatioAfter = test_strategy.getCurrentMakerVaultRatio()
 
     assert strategyAssetsAfter-strategyAssetsBefore > 0
-
     #collect profits into vault
     test_strategy.harvest({"from": gov})
     vaultAssetsAfter = vault.totalAssets()

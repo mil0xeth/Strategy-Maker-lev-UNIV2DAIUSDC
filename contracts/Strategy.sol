@@ -64,21 +64,15 @@ contract Strategy is BaseStrategy {
     constructor(
         address _vault,
         string memory _strategyName
-      //  bytes32 _ilk_yieldBearing,
-      //  address _gemJoin
     ) public BaseStrategy(_vault) {
         _initializeThis(
             _strategyName
-       //     _ilk_yieldBearing,
-       //     _gemJoin
         );
     }
 
     function initialize(
         address _vault,
         string memory _strategyName
-    //    bytes32 _ilk_yieldBearing,
-    //    address _gemJoin
     ) public {
         address sender = msg.sender;
         // Initialize BaseStrategy
@@ -86,26 +80,20 @@ contract Strategy is BaseStrategy {
         // Initialize cloned instance
         _initializeThis(
             _strategyName
-        //    _ilk_yieldBearing,
-        //    _gemJoin
         );
     }
 
     function _initializeThis(
         string memory _strategyName
-    //    bytes32 _ilk_yieldBearing,
-    //    address _gemJoin
     ) internal {
         strategyName = _strategyName;
-        //ilk_yieldBearing = _ilk_yieldBearing;
-        //gemJoinAdapter = _gemJoin;
 
         //10M$ dai or usdc maximum trade
-        maxSingleTrade = 10_000_000 * 1e18;
+        maxSingleTrade = 10_000_000 * 1e6;
         //10M$ dai or usdc maximum trade
-        minSingleTrade = 1 * 1e17;
+        minSingleTrade = 1 * 1e5;
 
-        creditThreshold = 1e6 * 1e18;
+        creditThreshold = 1e6 * 1e6;
         maxReportDelay = 21 days; // 21 days in seconds, if we hit this then harvestTrigger = True
 
         // Set health check to health.ychad.eth
@@ -197,13 +185,11 @@ contract Strategy is BaseStrategy {
     }
 
     function estimatedTotalAssets() public view override returns (uint256) {  //measured in WANT
-        return  
+        return
                 balanceOfWant() //free WANT balance in wallet
-                .add(balanceOfYieldBearing().add(balanceOfMakerVault()).mul(getWantPerYieldBearing()).div(WAD))
-                .sub(balanceOfDebt());
-                //want=usdc:
-                //.add(_convertBorrowTokenAmountToWant(balanceOfBorrowToken()))  // free DAI balance in wallet --> WANT
-                //.sub(_convertBorrowTokenAmountToWant(balanceOfDebt()));  //DAI debt of maker --> WANT
+                .add(_convertBorrowTokenAmountToWant(balanceOfBorrowToken()))
+                .add(balanceOfYieldBearing().add(balanceOfMakerVault()).mul(getWantPerYieldBearing()).div(WAD))  
+                .sub(_convertBorrowTokenAmountToWant(balanceOfDebt()));  //DAI debt of maker --> WANT
     }
 
     function prepareReturn(uint256 _debtOutstanding)
@@ -222,7 +208,6 @@ contract Strategy is BaseStrategy {
             ? totalAssetsAfterProfit.sub(totalDebt)
             : 0;
         uint256 _amountFreed;
-        //(_amountFreed, _loss) = liquidatePosition(_debtOutstanding.add(_profit));
         (_amountFreed, _loss) = liquidatePosition(Math.min(maxSingleTrade, _debtOutstanding.add(_profit)));
         _debtPayment = Math.min(_debtOutstanding, _amountFreed);
         //Net profit and loss calculation
@@ -260,6 +245,10 @@ contract Strategy is BaseStrategy {
                 MakerDaiDelegateLib.wind(Math.min(maxSingleTrade, balanceOfWant().sub(_debtOutstanding)), collateralizationRatio, cdpId);
             }
         }
+        //Check safety of collateralization ratio after all actions:
+        if (balanceOfMakerVault() > 0) {
+            require(getCurrentMakerVaultRatio() > collateralizationRatio.sub(rebalanceTolerance), "unsafe collateralization");
+        }
     }
 
     function liquidatePosition(uint256 _wantAmountNeeded)
@@ -273,16 +262,17 @@ contract Strategy is BaseStrategy {
             return (_wantAmountNeeded, 0);
         }
         //Not enough want to pay _wantAmountNeeded --> unwind position
-        MakerDaiDelegateLib.unwind(_wantAmountNeeded, collateralizationRatio, cdpId);
-
-        //update free want after liquidating
-        wantBalance = balanceOfWant();
+        MakerDaiDelegateLib.unwind(_wantAmountNeeded.sub(wantBalance), collateralizationRatio, cdpId);
         
+        //update free want after liquidating
+        uint256 looseWant = balanceOfWant();
         //loss calculation and returning liquidated amount
-        if (wantBalance < _wantAmountNeeded) {
-            return (wantBalance, _wantAmountNeeded.sub(wantBalance));
+        if (_wantAmountNeeded > looseWant) {
+            _liquidatedAmount = looseWant;
+            _loss = _wantAmountNeeded.sub(looseWant);
         } else {
-            return (_wantAmountNeeded, 0);
+            _liquidatedAmount = _wantAmountNeeded;
+            _loss = 0;
         }
     }
 
@@ -404,7 +394,7 @@ contract Strategy is BaseStrategy {
     // ----------------- INTERNAL FUNCTIONS SUPPORT -----------------
 
     function _borrowTokenAmountToMint(uint256 _amount) internal returns (uint256) {
-        return _amount.mul(getWantPerYieldBearing()).mul(WAD).div(collateralizationRatio).div(WAD);
+        return _amount.mul(getBorrowTokenPerYieldBearing()).mul(WAD).div(collateralizationRatio).div(WAD);
     }
 
     function _checkAllowance(
@@ -424,23 +414,28 @@ contract Strategy is BaseStrategy {
         return want.balanceOf(address(this));
     }
 
-    function balanceOfYieldBearing() public view returns (uint256) {
-        return yieldBearing.balanceOf(address(this));
-    }
-
-    //get amount of Want in Wei that is received for 1 yieldBearing
-    function getWantPerYieldBearing() public view returns (uint256){
-        //The returned tuple contains (DAI amount, USDC amount) - for want=dai:
-        (uint256 wantUnderlyingBalance, uint256 otherTokenUnderlyingBalance) = yieldBearing.getUnderlyingBalances();
-        return wantUnderlyingBalance.add(otherTokenUnderlyingBalance.mul(1e12)).mul(WAD).div(yieldBearing.totalSupply());
-    }
-
-    /*
     //want=usdc
     function balanceOfBorrowToken() public view returns (uint256) {
         return borrowToken.balanceOf(address(this));
     }
-    */
+
+    function balanceOfYieldBearing() public view returns (uint256) {
+        return yieldBearing.balanceOf(address(this));
+    }
+
+    //get amount of want in Wei that is received for 1 yieldBearing
+    function getWantPerYieldBearing() public view returns (uint256){
+        //The returned tuple contains (DAI amount, USDC amount) - for want=dai:
+        (uint256 otherTokenUnderlyingBalance, uint256 wantUnderlyingBalance) = yieldBearing.getUnderlyingBalances();
+        return wantUnderlyingBalance.add(otherTokenUnderlyingBalance.div(1e12)).mul(WAD).div(yieldBearing.totalSupply());
+    }
+
+    //get amount of borrowToken in Wei that is received for 1 yieldBearing
+    function getBorrowTokenPerYieldBearing() public view returns (uint256){
+        //The returned tuple contains (DAI amount, USDC amount) - for want=dai:
+        (uint256 borrowTokenUnderlyingBalance, uint256 otherTokenUnderlyingBalance) = yieldBearing.getUnderlyingBalances();
+        return borrowTokenUnderlyingBalance.add(otherTokenUnderlyingBalance.mul(1e12)).mul(WAD).div(yieldBearing.totalSupply());
+    }
 
     function balanceOfDebt() public view returns (uint256) {
         return MakerDaiDelegateLib.debtForCdp(cdpId, ilk_yieldBearing);
@@ -457,15 +452,15 @@ contract Strategy is BaseStrategy {
 
     // Effective collateralization ratio of the vault
     function getCurrentMakerVaultRatio() public view returns (uint256) {
-        return MakerDaiDelegateLib.getPessimisticRatioOfCdpWithExternalPrice(cdpId,ilk_yieldBearing,getWantPerYieldBearing(),WAD);
+        return MakerDaiDelegateLib.getPessimisticRatioOfCdpWithExternalPrice(cdpId,ilk_yieldBearing,getBorrowTokenPerYieldBearing(),WAD);
     }
 
-    function getHypotheticalMakerVaultRatioWithMultiplier(uint256 _wantMultiplier, uint256 _otherTokenMultiplier) public view returns (uint256) {
+    function getHypotheticalMakerVaultRatioWithMultiplier(uint256 _otherTokenMultiplier, uint256 _wantMultiplier) public view returns (uint256) {
         //The Multipliers are basispoints 100.01 = +0.01% increase of DAI price. Multipliers of 10000 are returning the CurrentMakerVaultRatio()
         //The returned tuple contains (DAI amount, USDC amount) - for want=dai:
-        (uint256 wantUnderlyingBalance, uint256 otherTokenUnderlyingBalance) = yieldBearing.getUnderlyingBalances();
-        uint256 hypotheticalWantPerYieldBearing = wantUnderlyingBalance.mul(_wantMultiplier).div(10000).add(otherTokenUnderlyingBalance.mul(_otherTokenMultiplier).div(10000).mul(1e12)).mul(WAD).div(yieldBearing.totalSupply());
-        return balanceOfMakerVault().mul(hypotheticalWantPerYieldBearing).div(balanceOfDebt().mul(_wantMultiplier));
+        (uint256 otherTokenUnderlyingBalance, uint256 wantUnderlyingBalance) = yieldBearing.getUnderlyingBalances();
+        uint256 hypotheticalWantPerYieldBearing = otherTokenUnderlyingBalance.mul(_otherTokenMultiplier).div(10000).add(wantUnderlyingBalance.mul(_wantMultiplier).div(10000).mul(1e12)).mul(WAD).div(yieldBearing.totalSupply());
+        return balanceOfMakerVault().mul(hypotheticalWantPerYieldBearing).div(balanceOfDebt().mul(_otherTokenMultiplier));
     }
 
     // check if the current baseFee is below our external target
@@ -490,17 +485,28 @@ contract Strategy is BaseStrategy {
     }
 
     // ----------------- TOKEN CONVERSIONS -----------------
-    /*
+    
     function _convertBorrowTokenAmountToWant(uint256 _amount)
         internal
         view
         returns (uint256)
     {
         //want=dai:
-        return _amount;
+        //return _amount;
         //want=usdc:
-        //return _amount.div(1e12);
+        return _amount.div(1e12);
     }
-    */
+
+    function _convertWantAmountToBorrowToken(uint256 _amount)
+        internal
+        view
+        returns (uint256)
+    {
+        //want=dai:
+        //return _amount;
+        //want=usdc:
+        return _amount.mul(1e12);
+    }
+    
 
 }

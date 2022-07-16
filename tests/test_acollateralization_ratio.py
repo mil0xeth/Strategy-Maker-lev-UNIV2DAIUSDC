@@ -18,7 +18,6 @@ def test_vault_ratio_calculation_on_BIGTIME_total_withdraw(
     # Collateral ratio should be the target ratio set
     assert ( pytest.approx(test_strategy.getCurrentMakerVaultRatio(), rel=RELATIVE_APPROX) == test_strategy.collateralizationRatio())
 
-
     # Withdraw 100% of the assets, with 0.1% maxLoss
     withdraw_tx = vault.withdraw(amountBIGTIME/2, user, 1000, {"from": user})
 
@@ -77,6 +76,7 @@ def test_vault_ratio_calculation_on_BIGTIME_total_withdraw(
     test_strategy.harvest({"from": gov})
 
     withdraw_tx = vault.withdraw(vault.balanceOf(user), user, 1000, {"from": user})
+    withdraw_tx = vault.withdraw(vault.balanceOf(user2), user2, 1000, {"from": user2})
 
     assert vault.totalDebt() == 0
     assert vault.totalAssets() == 0
@@ -446,7 +446,7 @@ def test_vault_ratio_calculation_on_sandwiched_total_withdraw(
     # Initial ratio is 0 because there is no collateral locked
     assert test_strategy.getCurrentMakerVaultRatio() == 0
     #sandwich:
-    sandwich = "1000 ether"
+    sandwich = 1000e6
     token.approve(vault.address, sandwich, {"from": token_whale})
     vault.deposit(sandwich, {"from": token_whale})
     
