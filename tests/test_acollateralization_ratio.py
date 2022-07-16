@@ -77,10 +77,11 @@ def test_vault_ratio_calculation_on_BIGTIME_total_withdraw(
     test_strategy.harvest({"from": gov})
 
     withdraw_tx = vault.withdraw(vault.balanceOf(user), user, 1000, {"from": user})
+    withdraw_tx = vault.withdraw(vault.balanceOf(user2), user2, 1000, {"from": user2})
 
     assert vault.totalDebt() == 0
     assert vault.totalAssets() == 0
-    assert test_strategy.estimatedTotalAssets() == 0
+    assert test_strategy.estimatedTotalAssets() < 0.00001e18
 
 
 

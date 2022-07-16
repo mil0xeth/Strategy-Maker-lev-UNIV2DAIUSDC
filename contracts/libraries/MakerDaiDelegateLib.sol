@@ -341,9 +341,10 @@ library MakerDaiDelegateLib {
         //Calculate how much borrowToken to mint to leverage up to targetCollateralizationRatio:
         uint256 flashloanAmount = wantAmountInitial.mul(RAY).div(targetCollateralizationRatio.mul(1e9).sub(RAY));
         VatLike vat = VatLike(manager.vat());
-        flashloanAmount = Math.min(flashloanAmount, _forceMintWithinLimits(vat, ilk_yieldBearing, flashloanAmount, debtForCdp(cdpId, ilk_yieldBearing)));
+        uint256 currentDebt = debtForCdp(cdpId, ilk_yieldBearing);
+        flashloanAmount = Math.min(flashloanAmount, _forceMintWithinLimits(vat, ilk_yieldBearing, flashloanAmount, currentDebt));
         //Check if amount of dai to borrow is above debtFloor
-        if ( (debtForCdp(cdpId, ilk_yieldBearing).add(flashloanAmount)) <= debtFloor(ilk_yieldBearing).add(1e15)){
+        if ( (currentDebt.add(flashloanAmount)) <= debtFloor(ilk_yieldBearing).add(1e15)){
             return;
         }
         bytes memory data = abi.encode(Action.WIND, cdpId, wantAmountInitial, flashloanAmount, targetCollateralizationRatio); 
@@ -420,27 +421,6 @@ library MakerDaiDelegateLib {
         //want=dai: nothing further necessary
     }
 
-    
-    function uint256ToString(uint256 _i) internal pure returns (string memory _uintAsString) {
-        uint256 number = _i;
-        if (number == 0) {
-            return "0";
-        }
-        uint256 j = number;
-        uint256 len;
-        while (j != 0) {
-            len++;
-            j /= 10;
-        }
-        bytes memory bstr = new bytes(len);
-        uint256 k = len - 1;
-        while (number != 0) {
-            bstr[k--] = byte(uint8(48 + number % 10));
-            number /= 10;
-        }
-        return string(bstr);
-    }
-
     //get amount of Want in Wei that is received for 1 yieldBearing
     function getWantPerYieldBearing() internal view returns (uint256){
         (uint256 wantUnderlyingBalance, uint256 otherTokenUnderlyingBalance) = yieldBearing.getUnderlyingBalances();
@@ -458,13 +438,6 @@ library MakerDaiDelegateLib {
     function balanceOfOtherToken() internal view returns (uint256) {
         return otherToken.balanceOf(address(this));
     }
-
-    /*
-    //want=usdc
-    function balanceOfBorrowToken() public view returns (uint256) {
-        return borrowToken.balanceOf(address(this));
-    }
-    */
 
     // ----------------- INTERNAL FUNCTIONS -----------------
 

@@ -64,21 +64,15 @@ contract Strategy is BaseStrategy {
     constructor(
         address _vault,
         string memory _strategyName
-      //  bytes32 _ilk_yieldBearing,
-      //  address _gemJoin
     ) public BaseStrategy(_vault) {
         _initializeThis(
             _strategyName
-       //     _ilk_yieldBearing,
-       //     _gemJoin
         );
     }
 
     function initialize(
         address _vault,
         string memory _strategyName
-    //    bytes32 _ilk_yieldBearing,
-    //    address _gemJoin
     ) public {
         address sender = msg.sender;
         // Initialize BaseStrategy
@@ -86,19 +80,13 @@ contract Strategy is BaseStrategy {
         // Initialize cloned instance
         _initializeThis(
             _strategyName
-        //    _ilk_yieldBearing,
-        //    _gemJoin
         );
     }
 
     function _initializeThis(
         string memory _strategyName
-    //    bytes32 _ilk_yieldBearing,
-    //    address _gemJoin
     ) internal {
         strategyName = _strategyName;
-        //ilk_yieldBearing = _ilk_yieldBearing;
-        //gemJoinAdapter = _gemJoin;
 
         //10M$ dai or usdc maximum trade
         maxSingleTrade = 10_000_000 * 1e18;
@@ -222,7 +210,6 @@ contract Strategy is BaseStrategy {
             ? totalAssetsAfterProfit.sub(totalDebt)
             : 0;
         uint256 _amountFreed;
-        //(_amountFreed, _loss) = liquidatePosition(_debtOutstanding.add(_profit));
         (_amountFreed, _loss) = liquidatePosition(Math.min(maxSingleTrade, _debtOutstanding.add(_profit)));
         _debtPayment = Math.min(_debtOutstanding, _amountFreed);
         //Net profit and loss calculation
@@ -260,6 +247,11 @@ contract Strategy is BaseStrategy {
                 MakerDaiDelegateLib.wind(Math.min(maxSingleTrade, balanceOfWant().sub(_debtOutstanding)), collateralizationRatio, cdpId);
             }
         }
+        //Check safety of collateralization ratio after all actions:
+        if (balanceOfMakerVault() > 0) {
+            require(getCurrentMakerVaultRatio() > collateralizationRatio.sub(rebalanceTolerance), "unsafe collateralization");
+        }
+
     }
 
     function liquidatePosition(uint256 _wantAmountNeeded)
@@ -273,16 +265,17 @@ contract Strategy is BaseStrategy {
             return (_wantAmountNeeded, 0);
         }
         //Not enough want to pay _wantAmountNeeded --> unwind position
-        MakerDaiDelegateLib.unwind(_wantAmountNeeded, collateralizationRatio, cdpId);
+        MakerDaiDelegateLib.unwind(_wantAmountNeeded.sub(wantBalance), collateralizationRatio, cdpId);
 
         //update free want after liquidating
-        wantBalance = balanceOfWant();
-        
+        uint256 looseWant = balanceOfWant();
         //loss calculation and returning liquidated amount
-        if (wantBalance < _wantAmountNeeded) {
-            return (wantBalance, _wantAmountNeeded.sub(wantBalance));
+        if (_wantAmountNeeded > looseWant) {
+            _liquidatedAmount = looseWant;
+            _loss = _wantAmountNeeded.sub(looseWant);
         } else {
-            return (_wantAmountNeeded, 0);
+            _liquidatedAmount = _wantAmountNeeded;
+            _loss = 0;
         }
     }
 
@@ -435,13 +428,6 @@ contract Strategy is BaseStrategy {
         return wantUnderlyingBalance.add(otherTokenUnderlyingBalance.mul(1e12)).mul(WAD).div(yieldBearing.totalSupply());
     }
 
-    /*
-    //want=usdc
-    function balanceOfBorrowToken() public view returns (uint256) {
-        return borrowToken.balanceOf(address(this));
-    }
-    */
-
     function balanceOfDebt() public view returns (uint256) {
         return MakerDaiDelegateLib.debtForCdp(cdpId, ilk_yieldBearing);
     }
@@ -488,19 +474,5 @@ contract Strategy is BaseStrategy {
             balanceOfDebt()
         );
     }
-
-    // ----------------- TOKEN CONVERSIONS -----------------
-    /*
-    function _convertBorrowTokenAmountToWant(uint256 _amount)
-        internal
-        view
-        returns (uint256)
-    {
-        //want=dai:
-        return _amount;
-        //want=usdc:
-        //return _amount.div(1e12);
-    }
-    */
 
 }

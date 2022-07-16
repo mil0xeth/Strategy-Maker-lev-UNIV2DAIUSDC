@@ -188,7 +188,7 @@ def user(accounts):
 
 @pytest.fixture
 def user2(accounts):
-    yield accounts[0]
+    yield accounts[4]
 
 @pytest.fixture
 def rewards(accounts):
