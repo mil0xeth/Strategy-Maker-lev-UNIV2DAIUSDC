@@ -46,7 +46,8 @@ contract Strategy is BaseStrategy {
     uint256 public collateralizationRatio;
 
     // Allow the collateralization ratio to drift a bit in order to avoid cycles
-    uint256 public rebalanceTolerance;
+    uint256 public lowerRebalanceTolerance;
+    uint256 public upperRebalanceTolerance;
 
     bool internal forceHarvestTriggerOnce; // only set this to true when we want to trigger our keepers to harvest for us
     uint256 public creditThreshold; // amount of credit in underlying tokens that will automatically trigger a harvest  
@@ -102,11 +103,12 @@ contract Strategy is BaseStrategy {
         cdpId = MakerDaiDelegateLib.openCdp(ilk_yieldBearing);
         require(cdpId > 0); // dev: error opening cdp
 
-        // Current ratio can drift (collateralizationRatio -f rebalanceTolerance, collateralizationRatio plus rebalanceTolerance)
-        // Allow additional 0.001 in any direction (1035, 1045) by default
-        rebalanceTolerance = (20 * WAD) / 10000;
+        // Current ratio can drift
+        // Allow additional 0.002 = 0.2% in any direction by default ==> 102.5% upper, 102.1% lower
+        upperRebalanceTolerance = (20 * WAD) / 10000;
+        lowerRebalanceTolerance = (20 * WAD) / 10000;
 
-        // Minimum collateralization ratio for GUNIV3DAIUSDC is 102% == 1020
+        // Minimum collateralization ratio for GUNIV3DAIUSDC is 102.3% == 10230
         collateralizationRatio = (10230 * WAD) / 10000;
 
     }
@@ -139,17 +141,18 @@ contract Strategy is BaseStrategy {
         external
         onlyEmergencyAuthorized
     {
-        require(_collateralizationRatio.sub(rebalanceTolerance) > MakerDaiDelegateLib.getLiquidationRatio(ilk_yieldBearing).mul(WAD).div(RAY)); // dev: desired collateralization ratio is too low
+        require(_collateralizationRatio.sub(lowerRebalanceTolerance) > MakerDaiDelegateLib.getLiquidationRatio(ilk_yieldBearing).mul(WAD).div(RAY)); // dev: desired collateralization ratio is too low
         collateralizationRatio = _collateralizationRatio;
     }
 
     // Rebalancing bands (collat ratio - tolerance, collat_ratio plus tolerance)
-    function setRebalanceTolerance(uint256 _rebalanceTolerance)
+    function setRebalanceTolerance(uint256 _lowerRebalanceTolerance, uint256 _upperRebalanceTolerance)
         external
         onlyEmergencyAuthorized
     {
-        require(collateralizationRatio.sub(_rebalanceTolerance) > MakerDaiDelegateLib.getLiquidationRatio(ilk_yieldBearing).mul(WAD).div(RAY)); // dev: desired rebalance tolerance makes allowed ratio too low
-        rebalanceTolerance = _rebalanceTolerance;
+        require(collateralizationRatio.sub(_lowerRebalanceTolerance) > MakerDaiDelegateLib.getLiquidationRatio(ilk_yieldBearing).mul(WAD).div(RAY)); // dev: desired rebalance tolerance makes allowed ratio too low
+        lowerRebalanceTolerance = _lowerRebalanceTolerance;
+        upperRebalanceTolerance = _upperRebalanceTolerance;
     }
 
     // Required to move funds to a new cdp and use a different cdpId after migration
@@ -236,12 +239,12 @@ contract Strategy is BaseStrategy {
             //Check if collateralizationRatio needs adjusting
             // Allow the ratio to move a bit in either direction to avoid cycles
             uint256 currentRatio = getCurrentMakerVaultRatio();
-            if (currentRatio < collateralizationRatio.sub(rebalanceTolerance)) { //if current ratio is BELOW goal ratio:
+            if (currentRatio < collateralizationRatio.sub(lowerRebalanceTolerance)) { //if current ratio is BELOW goal ratio:
                 uint256 currentCollateral = balanceOfMakerVault();
                 uint256 yieldBearingToRepay = currentCollateral.sub( currentCollateral.mul(currentRatio).div(collateralizationRatio)  );
                 uint256 wantAmountToRepay = yieldBearingToRepay.mul(getWantPerYieldBearing()).div(WAD);
                 MakerDaiDelegateLib.unwind(wantAmountToRepay, collateralizationRatio, cdpId);
-            } else if (currentRatio > collateralizationRatio.add(rebalanceTolerance)) { //if current ratio is ABOVE goal ratio:
+            } else if (currentRatio > collateralizationRatio.add(upperRebalanceTolerance)) { //if current ratio is ABOVE goal ratio:
                 // Mint the maximum DAI possible for the locked collateral            
                 _lockCollateralAndMintDai(0, _borrowTokenAmountToMint(balanceOfMakerVault()).sub(balanceOfDebt()));
                 MakerDaiDelegateLib.wind(Math.min(maxSingleTrade, balanceOfWant().sub(_debtOutstanding)), collateralizationRatio, cdpId);
@@ -249,7 +252,7 @@ contract Strategy is BaseStrategy {
         }
         //Check safety of collateralization ratio after all actions:
         if (balanceOfMakerVault() > 0) {
-            require(getCurrentMakerVaultRatio() > collateralizationRatio.sub(rebalanceTolerance), "unsafe collateralization");
+            require(getCurrentMakerVaultRatio() > collateralizationRatio.sub(lowerRebalanceTolerance), "unsafe collateralization");
         }
 
     }
@@ -337,13 +340,13 @@ contract Strategy is BaseStrategy {
         uint256 currentRatio = getCurrentMakerVaultRatio();
         // If we need to repay debt and are outside the tolerance bands,
         // we do it regardless of the call cost
-        if (currentRatio < collateralizationRatio.sub(rebalanceTolerance)) {
+        if (currentRatio < collateralizationRatio.sub(lowerRebalanceTolerance)) {
             return true;
         }
 
         // Mint more DAI if possible
         return
-            currentRatio > collateralizationRatio.add(rebalanceTolerance) &&
+            currentRatio > collateralizationRatio.add(upperRebalanceTolerance) &&
             balanceOfDebt() > 0 &&
             isBaseFeeAcceptable() &&
             MakerDaiDelegateLib.isDaiAvailableToMint(ilk_yieldBearing);

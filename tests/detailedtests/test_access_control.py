@@ -23,20 +23,25 @@ def test_set_collateralization_ratio_acl(
 def test_set_rebalance_tolerance_acl(
     strategy, gov, strategist, management, guardian, user
 ):
-    strategy.setRebalanceTolerance(5, {"from": gov})
-    assert strategy.rebalanceTolerance() == 5
+    strategy.setRebalanceTolerance(5, 5, {"from": gov})
+    assert strategy.lowerRebalanceTolerance() == 5
+    assert strategy.upperRebalanceTolerance() == 5
 
-    strategy.setRebalanceTolerance(4, {"from": strategist})
-    assert strategy.rebalanceTolerance() == 4
+    strategy.setRebalanceTolerance(4, 5, {"from": strategist})
+    assert strategy.lowerRebalanceTolerance() == 4
+    assert strategy.upperRebalanceTolerance() == 5
 
-    strategy.setRebalanceTolerance(3, {"from": management})
-    assert strategy.rebalanceTolerance() == 3
 
-    strategy.setRebalanceTolerance(2, {"from": guardian})
-    assert strategy.rebalanceTolerance() == 2
+    strategy.setRebalanceTolerance(3, 4, {"from": management})
+    assert strategy.lowerRebalanceTolerance() == 3
+    assert strategy.upperRebalanceTolerance() == 4
+
+    strategy.setRebalanceTolerance(2, 3, {"from": guardian})
+    assert strategy.lowerRebalanceTolerance() == 2
+    assert strategy.upperRebalanceTolerance() == 3
 
     with reverts("!authorized"):
-        strategy.setRebalanceTolerance(5, {"from": user})
+        strategy.setRebalanceTolerance(5, 4, {"from": user})
 
 
 
