@@ -184,7 +184,7 @@ def test_lower_ratio_inside_rebalancing_band_should_not_take_more_debt(
     chain.sleep(1)
     strategy.harvest({"from": gov})
 
-    new_ratio = strategy.collateralizationRatio() - strategy.rebalanceTolerance() * 0.99
+    new_ratio = strategy.collateralizationRatio() - strategy.lowerRebalanceTolerance() * 0.99
     strategy.setCollateralizationRatio(new_ratio, {"from": gov})
 
     # Adjust the position
@@ -259,7 +259,7 @@ def test_higher_ratio_inside_rebalancing_band_should_not_repay_debt(
     test_strategy.harvest({"from": gov})
 
 
-    new_ratio = ( test_strategy.collateralizationRatio() + test_strategy.rebalanceTolerance() * 0.98 )
+    new_ratio = ( test_strategy.collateralizationRatio() + test_strategy.upperRebalanceTolerance() * 0.98 )
     test_strategy.setCollateralizationRatio(new_ratio, {"from": gov})
 
     assert test_strategy.tendTrigger(1) == False
