@@ -26,7 +26,7 @@ def wantNr():
 #Decide on yieldBearing = collateral Token on Money Market
 @pytest.fixture(autouse=True)
 def yieldBearingNr():    
-    yieldBearingNr = 0 #Currently: GUNIV3DAIUSDC1 0.05%
+    yieldBearingNr = 2 #Currently: GUNIV3DAIUSDC1 0.05%
     #0 = GUNIV3DAIUSDC1 0.0%,   1 =  
     yield yieldBearingNr
 #######################################################
@@ -54,6 +54,7 @@ def yieldBearing(guniv3daiusdc1, guniv3daiusdc2, yieldBearingNr):
     yieldBearing_address = [
     guniv3daiusdc1,   #0 = GUNIV3DAIUSDC1 0.05%
     guniv3daiusdc2,   #1 = GUNIV3DAIUSDC2 0.01%
+    univ2daiusdc, #2 = UNIV2DAIUSDC
     ]
     yield yieldBearing_address[yieldBearingNr]
 
@@ -96,6 +97,11 @@ def guniv3daiusdc1():
 @pytest.fixture
 def guniv3daiusdc2():
     token_address = "0x50379f632ca68D36E50cfBC8F78fe16bd1499d1e"  # wstETH
+    yield Contract(token_address)
+
+@pytest.fixture
+def univ2daiusdc():
+    token_address = "0xAE461cA67B15dc8dc81CE7615e0320dA1A9aB8D5"
     yield Contract(token_address)
 
 @pytest.fixture
@@ -148,7 +154,7 @@ def token_whale_BIG(accounts, wantNr, dai_whale):
 def yieldBearing_whale(accounts, yieldBearingNr, token_whale, yieldBearing, token, partnerToken, strategy):
     token.approve(yieldBearing, 100000000000000000000e18, {"from": token_whale})
     partnerToken.approve(yieldBearing, 10000000000000000000000e6, {"from": token_whale})
-    yieldBearing.mint(yieldBearing.getMintAmounts(token.balanceOf(token_whale)*0.1, partnerToken.balanceOf(token_whale)*0.1)[2], token_whale, {"from": token_whale})
+    #yieldBearing.mint(yieldBearing.getMintAmounts(token.balanceOf(token_whale)*0.1, partnerToken.balanceOf(token_whale)*0.1)[2], token_whale, {"from": token_whale})
     yield token_whale
 
 @pytest.fixture
