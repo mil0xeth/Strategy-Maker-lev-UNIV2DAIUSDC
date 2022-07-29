@@ -27,7 +27,7 @@ def wantNr():
 @pytest.fixture(autouse=True)
 def yieldBearingNr():    
     yieldBearingNr = 2 #Currently: UNIV2DAIUSDC 0.01%
-    #0 = GUNIV3DAIUSDC1 0.0%,   1 = GUNIV3DAIUSDC1 0.05%; 2 = UNIV2DAIUSDC 0.01%  
+    #0 = GUNIV3DAIUSDC1 0.0%,   1 = GUNIV3DAIUSDC1 0.05%; 2 = UNIV2DAIUSDC 0.3%  
     yield yieldBearingNr
 #######################################################
 @pytest.fixture
@@ -54,7 +54,7 @@ def yieldBearing(guniv3daiusdc1, guniv3daiusdc2, yieldBearingNr):
     yieldBearing_address = [
     guniv3daiusdc1,   #0 = GUNIV3DAIUSDC1 0.05%
     guniv3daiusdc2,   #1 = GUNIV3DAIUSDC2 0.01%
-    univ2daiusdc,     #2 = UNIV2DAIUSDC   0.01%
+    univ2daiusdc,     #2 = UNIV2DAIUSDC   0.3%
     ]
     yield yieldBearing_address[yieldBearingNr]
 
@@ -425,7 +425,7 @@ def ilk_yieldBearing(yieldBearingNr):
     ilk_hashes = [
     "0x47554e49563344414955534443312d4100000000000000000000000000000000",   #0 = GUNIV3DAIUSDC1 0.05%
     "0x47554e49563344414955534443322d4100000000000000000000000000000000",   #1 = GUNIV3DAIUSDC2 0.01%
-    "0x554e495632444149555344432d41000000000000000000000000000000000000",   #2 = UNIV2DAIUSDC   0.01%
+    "0x554e495632444149555344432d41000000000000000000000000000000000000",   #2 = UNIV2DAIUSDC   0.3%
     ]
     yield ilk_hashes[yieldBearingNr]
 
