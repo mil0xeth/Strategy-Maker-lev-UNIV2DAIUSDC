@@ -6,7 +6,8 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 
 import "../../interfaces/maker/IMaker.sol";
-import "../../interfaces/GUNI/GUniPool.sol";
+import "../../interfaces/UniswapInterfaces/IUniswapV2Router01.sol";
+import "../../interfaces/UniswapInterfaces/IUniswapV2Pair.sol";
 
 import {
     SafeERC20,
@@ -78,9 +79,16 @@ library MakerDaiDelegateLib {
     //address internal constant gemJoinAdapter = 0xbFD445A97e7459b0eBb34cfbd3245750Dba4d7a4;
     
     //GUNIDAIUSDC2 - Gelato Uniswap DAI/USDC2 LP 2 - 0.01% fee
-    GUniPool internal constant yieldBearing = GUniPool(0x50379f632ca68D36E50cfBC8F78fe16bd1499d1e);
-    bytes32 internal constant ilk_yieldBearing = 0x47554e49563344414955534443322d4100000000000000000000000000000000;
-    address internal constant gemJoinAdapter = 0xA7e4dDde3cBcEf122851A7C8F7A55f23c0Daf335;
+    // GUniPool internal constant yieldBearing = GUniPool(0x50379f632ca68D36E50cfBC8F78fe16bd1499d1e);
+    // bytes32 internal constant ilk_yieldBearing = 0x47554e49563344414955534443322d4100000000000000000000000000000000;
+    // address internal constant gemJoinAdapter = 0xA7e4dDde3cBcEf122851A7C8F7A55f23c0Daf335;
+
+    //UNIV2DAIUSDC - UniswapV2 DAI/USDC LP
+    IUniswapV2Pair internal constant yieldBearing = IUniswapV2Pair(0xAE461cA67B15dc8dc81CE7615e0320dA1A9aB8D5);
+    bytes32 internal constant ilk_yieldBearing = 0x554e495632444149555344432d41000000000000000000000000000000000000;
+    address internal constant gemJoinAdapter = 0xA81598667AC561986b70ae11bBE2dd5348ed4327;
+
+    IUniswapV2Router public constant router = IUniswapV2Router01(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);    
 
     PSMLike public constant psm = PSMLike(0x89B78CfA322F6C5dE0aBcEecab66Aee45393cC5A) ;
 
@@ -423,7 +431,7 @@ library MakerDaiDelegateLib {
 
     //get amount of Want in Wei that is received for 1 yieldBearing
     function getWantPerYieldBearing() internal view returns (uint256){
-        (uint256 wantUnderlyingBalance, uint256 otherTokenUnderlyingBalance) = yieldBearing.getUnderlyingBalances();
+        (uint256 wantUnderlyingBalance, uint256 otherTokenUnderlyingBalance) = yieldBearing.getReserves();
         return (wantUnderlyingBalance.mul(WAD).add(otherTokenUnderlyingBalance.mul(WAD).mul(WAD).div(1e6))).div(yieldBearing.totalSupply());
     }
 
@@ -441,7 +449,7 @@ library MakerDaiDelegateLib {
 
     // ----------------- INTERNAL FUNCTIONS -----------------
 
-        function _initFlashLoan(bytes memory data, uint256 amount) internal {
+    function _initFlashLoan(bytes memory data, uint256 amount) internal {
         //Flashmint implementation:
         _checkAllowance(address(flashmint), address(borrowToken), amount);
         flashmint.flashLoan(address(this), address(borrowToken), amount, data);
@@ -463,7 +471,7 @@ library MakerDaiDelegateLib {
             return 0;
         }
         _amount = Math.min(_amount, balanceOfWant());
-        (uint256 wantRatio, uint256 otherTokenRatio) = yieldBearing.getUnderlyingBalances();
+        (uint256 wantRatio, uint256 otherTokenRatio, ) = yieldBearing.getReserves();
         wantRatio = wantRatio.mul(WAD).div(yieldBearing.totalSupply());
         otherTokenRatio = otherTokenRatio.mul(WAD).mul(otherTokenTo18Conversion).div(yieldBearing.totalSupply());
         uint256 wantAmountForMint = _amount.mul(wantRatio).div(wantRatio + otherTokenRatio);
@@ -477,8 +485,7 @@ library MakerDaiDelegateLib {
         uint256 otherTokenBalance = balanceOfOtherToken();
         _checkAllowance(address(yieldBearing), address(want), wantAmountForMint);
         _checkAllowance(address(yieldBearing), address(otherToken), otherTokenBalance);      
-        (,,uint256 mintAmount) = yieldBearing.getMintAmounts(wantAmountForMint, otherTokenBalance); 
-        yieldBearing.mint(mintAmount, address(this));
+        (,,uint256 mintAmount) = router.addLiquidity(address(want), address(otherToken), wantAmountForMint, otherTokenBalance, 0, 0, address(this), block.timestamp);
         return balanceOfYieldBearing();
     }
 
@@ -487,7 +494,7 @@ library MakerDaiDelegateLib {
             return;
         }
         //Burn the yieldBearing token to unlock DAI and USDC:
-        yieldBearing.burn(Math.min(_amount, balanceOfYieldBearing()), address(this));
+        router.removeLiquidity(address(want), address(otherToken), Math.min(_amount, balanceOfYieldBearing()), 0, 0, address(this),block.timestamp);
         
         //Amount of otherToken after burning:
         uint256 otherTokenBalance = balanceOfOtherToken();
