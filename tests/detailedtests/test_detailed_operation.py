@@ -129,8 +129,8 @@ def disabled_profitable_harvest_SMALL(
     chain.sleep(3600 * 6)  # 6 hrs needed for profits to unlock
     chain.mine(1)
     profit = token.balanceOf(vault.address)  # Profits go to vault
-    strategy.harvest({"from": gov})
-    assert pytest.approx(strategy.estimatedTotalAssets() + profit, rel=RELATIVE_APPROX_LOSSY) == amount
+
+    assert pytest.approx(strategy.estimatedTotalAssets() + profit, rel=RELATIVE_APPROX_LOSSY) > amount
     assert vault.pricePerShare() >= before_pps
     assert vault.totalAssets() >= amount
 
