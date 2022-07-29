@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 
 import "../../interfaces/maker/IMaker.sol";
-import "../../interfaces/UniswapInterfaces/IUniswapV2Router01.sol";
+import "../../interfaces/UniswapInterfaces/IUniswapV2Router02.sol";
 import "../../interfaces/UniswapInterfaces/IUniswapV2Pair.sol";
 
 import {
@@ -88,7 +88,7 @@ library MakerDaiDelegateLib {
     bytes32 internal constant ilk_yieldBearing = 0x554e495632444149555344432d41000000000000000000000000000000000000;
     address internal constant gemJoinAdapter = 0xA81598667AC561986b70ae11bBE2dd5348ed4327;
 
-    IUniswapV2Router public constant router = IUniswapV2Router01(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);    
+    IUniswapV2Router02 public constant router = IUniswapV2Router02(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);    
 
     PSMLike public constant psm = PSMLike(0x89B78CfA322F6C5dE0aBcEecab66Aee45393cC5A) ;
 
@@ -431,7 +431,7 @@ library MakerDaiDelegateLib {
 
     //get amount of Want in Wei that is received for 1 yieldBearing
     function getWantPerYieldBearing() internal view returns (uint256){
-        (uint256 wantUnderlyingBalance, uint256 otherTokenUnderlyingBalance) = yieldBearing.getReserves();
+        (uint256 wantUnderlyingBalance, uint256 otherTokenUnderlyingBalance, ) = yieldBearing.getReserves();
         return (wantUnderlyingBalance.mul(WAD).add(otherTokenUnderlyingBalance.mul(WAD).mul(WAD).div(1e6))).div(yieldBearing.totalSupply());
     }
 
