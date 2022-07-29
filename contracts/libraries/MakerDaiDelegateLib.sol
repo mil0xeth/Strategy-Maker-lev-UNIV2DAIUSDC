@@ -483,8 +483,8 @@ library MakerDaiDelegateLib {
         //Mint yieldBearing:
         wantAmountForMint = Math.min(wantAmountForMint, balanceOfWant());
         uint256 otherTokenBalance = balanceOfOtherToken();
-        _checkAllowance(address(yieldBearing), address(want), wantAmountForMint);
-        _checkAllowance(address(yieldBearing), address(otherToken), otherTokenBalance);      
+        _checkAllowance(address(router), address(want), wantAmountForMint);
+        _checkAllowance(address(router), address(otherToken), otherTokenBalance);      
         (,,uint256 mintAmount) = router.addLiquidity(address(want), address(otherToken), wantAmountForMint, otherTokenBalance, 0, 0, address(this), block.timestamp);
         return balanceOfYieldBearing();
     }
@@ -494,7 +494,9 @@ library MakerDaiDelegateLib {
             return;
         }
         //Burn the yieldBearing token to unlock DAI and USDC:
-        router.removeLiquidity(address(want), address(otherToken), Math.min(_amount, balanceOfYieldBearing()), 0, 0, address(this),block.timestamp);
+        uint256 yieldBearingAmountToBurn = Math.min(_amount, balanceOfYieldBearing());
+        _checkAllowance(address(router), address(yieldBearing), yieldBearingAmountToBurn);
+        router.removeLiquidity(address(want), address(otherToken), yieldBearingAmountToBurn, 0, 0, address(this),block.timestamp);
         
         //Amount of otherToken after burning:
         uint256 otherTokenBalance = balanceOfOtherToken();
