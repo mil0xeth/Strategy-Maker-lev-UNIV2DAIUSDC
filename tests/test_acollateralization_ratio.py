@@ -20,7 +20,7 @@ def test_vault_ratio_calculation_on_BIGTIME_total_withdraw(
 
 
     # Withdraw 100% of the assets, with 0.1% maxLoss
-    withdraw_tx = vault.withdraw(amountBIGTIME/2, user, 1000, {"from": user})
+    withdraw_tx = vault.withdraw(amountBIGTIME, user, 1000, {"from": user})
 
 
     ####### USER 2
@@ -35,11 +35,11 @@ def test_vault_ratio_calculation_on_BIGTIME_total_withdraw(
 
 
     # Withdraw 100% of the assets, with 0.1% maxLoss
-    withdraw_tx = vault.withdraw(amountBIGTIME2/2, user2, 1000, {"from": user2})
+    withdraw_tx = vault.withdraw(amountBIGTIME2, user2, 1000, {"from": user2})
     test_strategy.harvest({"from": gov})
 
 
-   # REPEAT!
+    # REPEAT!
 
     token.approve(vault.address, amountBIGTIME*0.25, {"from": user})
     vault.deposit(amountBIGTIME*0.25, {"from": user})
@@ -129,7 +129,7 @@ def test_vault_ratio_calculation_on_BIGTIME_total_withdraw2(
     assert vault.totalAssets() == 0
     assert test_strategy.estimatedTotalAssets() == 0
 
-   # REPEAT!
+    # REPEAT!
 
     token.approve(vault.address, amountBIGTIME*0.25, {"from": user})
     vault.deposit(amountBIGTIME*0.25, {"from": user})
@@ -173,7 +173,7 @@ def test_vault_ratio_calculation_on_BIGTIME_total_withdraw2(
 
 
 def test_lower_ratio_inside_rebalancing_band_should_not_take_more_debt(
-    vault, strategy, token, amount, user, gov
+    vault, strategy, token, amount, user, gov, RELATIVE_APPROX
 ):
     # Deposit to the vault
     strategy.setCollateralizationRatio(1.05e18, {"from": gov})
@@ -191,6 +191,8 @@ def test_lower_ratio_inside_rebalancing_band_should_not_take_more_debt(
     # Adjust the position
     strategy.tend({"from": gov})
 
+    # Strategy should restore collateralization ratio to target value
+    assert (pytest.approx(strategy.collateralizationRatio(), rel=RELATIVE_APPROX) != strategy.getCurrentMakerVaultRatio())
 
 
 def test_higher_target_ratio_should_repay_debt(
@@ -218,35 +220,11 @@ def test_higher_target_ratio_should_repay_debt(
     tend_tx = strategy.tend({"from": gov})
 
     # Strategy should restore collateralization ratio to target value on withdraw
-    assert (pytest.approx(test_strategy.collateralizationRatio(), rel=RELATIVE_APPROX) == test_strategy.getCurrentMakerVaultRatio())
-
-def test_higher_target_ratio_should_repay_debt(
-    vault, strategy, token, amount, user, gov, RELATIVE_APPROX
-):
-    assert token.balanceOf(vault) == 0
-    # Deposit to the vault
-    token.approve(vault.address, amount, {"from": user})
-    vault.deposit(amount, {"from": user})
-
-    # Harvest 1: Send funds through the strategy
-    chain.sleep(1)
-    harvest_tx = strategy.harvest({"from": gov})
-    assert token.balanceOf(vault) == 0
-
-
-    new_ratio_relative = 1.01
-
-    # In default settings this will be 225 * 1.2 = 270
-    strategy.setCollateralizationRatio(
-        strategy.collateralizationRatio() * new_ratio_relative, {"from": gov}
-    )
-
-    # Adjust the position
-    tend_tx = strategy.tend({"from": gov})
+    assert (pytest.approx(strategy.collateralizationRatio(), rel=RELATIVE_APPROX) == strategy.getCurrentMakerVaultRatio())
 
     # Because the target collateralization ratio is higher, a part of the debt
     # will be repaid to maintain a healthy ratio
-
+    # Todo: Add test for debt amounts?
 
 def test_higher_ratio_inside_rebalancing_band_should_not_repay_debt(
     vault, test_strategy, token, amount, user, gov, RELATIVE_APPROX
@@ -450,7 +428,7 @@ def test_vault_ratio_calculation_on_sandwiched_total_withdraw(
     sandwich = "1000 ether"
     token.approve(vault.address, sandwich, {"from": token_whale})
     vault.deposit(sandwich, {"from": token_whale})
-    
+
     # Deposit to the vault and send funds through the strategy
     token.approve(vault.address, amount, {"from": user})
     vault.deposit(amount, {"from": user})
