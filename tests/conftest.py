@@ -26,7 +26,7 @@ def wantNr():
 #Decide on yieldBearing = collateral Token on Money Market
 @pytest.fixture(autouse=True)
 def yieldBearingNr():    
-    yieldBearingNr = 2 #Currently: UNIV2DAIUSDC 0.01%
+    yieldBearingNr = 2 #Currently: UNIV2DAIUSDC 0.03%
     #0 = GUNIV3DAIUSDC1 0.0%,   1 = GUNIV3DAIUSDC1 0.05%; 2 = UNIV2DAIUSDC 0.3%  
     yield yieldBearingNr
 #######################################################

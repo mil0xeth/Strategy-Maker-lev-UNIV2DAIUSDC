@@ -245,6 +245,8 @@ def test_higher_target_ratio_should_repay_debt(
     # Because the target collateralization ratio is higher, a part of the debt
     # will be repaid to maintain a healthy ratio
     # Todo: Add test for debt amounts?
+
+
 def test_higher_ratio_inside_rebalancing_band_should_not_repay_debt(
     vault, test_strategy, token, amount, user, gov, RELATIVE_APPROX
 ):
@@ -267,6 +269,7 @@ def test_higher_ratio_inside_rebalancing_band_should_not_repay_debt(
 
     # Strategy should restore collateralization ratio to target value on withdraw
     assert (pytest.approx(test_strategy.collateralizationRatio(), rel=RELATIVE_APPROX) != test_strategy.getCurrentMakerVaultRatio())
+
 
 def test_vault_ratio_calculation_on_withdraw(
    vault,  test_strategy, token, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
@@ -296,6 +299,7 @@ def test_vault_ratio_calculation_on_withdraw(
     assert (pytest.approx(test_strategy.collateralizationRatio(), rel=RELATIVE_APPROX) == test_strategy.getCurrentMakerVaultRatio())
 
 
+
 def test_vault_ratio_calculation_on_very_low_withdraw(
     vault, test_strategy, token, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
 ):
@@ -319,6 +323,7 @@ def test_vault_ratio_calculation_on_very_low_withdraw(
 
     # Strategy should restore collateralization ratio to target value on withdraw
     assert (pytest.approx(test_strategy.collateralizationRatio(), rel=RELATIVE_APPROX) == test_strategy.getCurrentMakerVaultRatio())
+
 
 
 def test_vault_ratio_calculation_on_high_withdraw(
@@ -349,6 +354,7 @@ def test_vault_ratio_calculation_on_high_withdraw(
         == test_strategy.getCurrentMakerVaultRatio()
     )
 
+
 def test_vault_ratio_calculation_on_very_high_withdraw(
     yieldBearing,dai, dai_whale, vault, test_strategy, token, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
 ):
@@ -375,6 +381,7 @@ def test_vault_ratio_calculation_on_very_high_withdraw(
     # Strategy should restore collateralization ratio to target value on withdraw
     assert (pytest.approx(test_strategy.collateralizationRatio(), rel=0.16) == test_strategy.getCurrentMakerVaultRatio())
 
+
 def test_vault_ratio_calculation_on_almost_total_withdraw(
     yieldBearing,dai, dai_whale, vault, router,  test_strategy, token, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
 ):
@@ -399,6 +406,7 @@ def test_vault_ratio_calculation_on_almost_total_withdraw(
 
     # Strategy should restore collateralization ratio to target value on withdraw
     assert (pytest.approx(test_strategy.collateralizationRatio(), rel=RELATIVE_APPROX) != test_strategy.getCurrentMakerVaultRatio())
+
 
 def test_vault_ratio_calculation_on_total_withdraw(
     yieldBearing,dai, dai_whale, token_whale, vault, test_strategy, token, amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
@@ -430,6 +438,7 @@ def test_vault_ratio_calculation_on_total_withdraw(
     assert vault.totalDebt() == 0
     assert vault.totalAssets() == 0
     assert test_strategy.estimatedTotalAssets() == 0
+
 
 def test_vault_ratio_calculation_on_sandwiched_total_withdraw(
     yieldBearing,token_whale, vault,  test_strategy, token,  amount, user, gov, RELATIVE_APPROX, RELATIVE_APPROX_LOSSY
