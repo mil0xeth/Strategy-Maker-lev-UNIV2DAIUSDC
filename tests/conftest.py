@@ -49,7 +49,7 @@ def partnerToken(dai, usdc, wantNr):
     yield token_address[wantNr]
 
 @pytest.fixture
-def yieldBearing(guniv3daiusdc1, guniv3daiusdc2, yieldBearingNr):   
+def yieldBearing(guniv3daiusdc1, guniv3daiusdc2, univ2daiusdc, yieldBearingNr):   
     #signifies want token given by wantNr
     yieldBearing_address = [
     guniv3daiusdc1,   #0 = GUNIV3DAIUSDC1 0.05%
