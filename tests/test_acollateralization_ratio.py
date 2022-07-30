@@ -41,9 +41,13 @@ def test_vault_ratio_calculation_on_BIGTIME_total_withdraw(
 
     assert ( pytest.approx(test_strategy.getCurrentMakerVaultRatio(), rel=RELATIVE_APPROX) == expected_collateralization)
 
-    # TODO: this is where we revert
     # Withdraw 100% of the assets, with 0.1% maxLoss
-    withdraw_tx = vault.withdraw(amountBIGTIME2/2, user2, 1000, {"from": user2})
+    withdraw_tx = vault.withdraw(amountBIGTIME2*0.5, user2, 1000, {"from": user2})
+    # Get max DAI liquidity
+    max_dai_available = test_strategy.balanceOfDaiAvailableToMint()
+    abc = test_strategy.getCurrentMakerVaultRatio()
+    print(max_dai_available)
+    print(abc)
     test_strategy.harvest({"from": gov})
 
 
@@ -54,6 +58,7 @@ def test_vault_ratio_calculation_on_BIGTIME_total_withdraw(
     chain.sleep(1)
     test_strategy.harvest({"from": gov})
 
+    # TODO: this is where we revert now
     # Collateral ratio should be the target ratio set
     assert ( pytest.approx(test_strategy.getCurrentMakerVaultRatio(), rel=RELATIVE_APPROX) == test_strategy.collateralizationRatio())
 
