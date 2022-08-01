@@ -54,5 +54,5 @@ def test_detailed_migration(
     assert vault.strategies(new_strategy).dict()["totalDebt"] == amount
 
     #Old strategy should have relinquished ownership of the CDP
-    #with reverts("cdp-not-allowed"):
-    #    strategy.shiftToCdp(orig_cdp_id, {"from": gov})
+    with reverts("cdp-not-allowed"):
+       strategy.shiftToCdp(orig_cdp_id, {"from": gov})

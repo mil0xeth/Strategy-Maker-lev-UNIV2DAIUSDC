@@ -26,8 +26,8 @@ def wantNr():
 #Decide on yieldBearing = collateral Token on Money Market
 @pytest.fixture(autouse=True)
 def yieldBearingNr():    
-    yieldBearingNr = 2 #Currently: GUNIV3DAIUSDC1 0.05%
-    #0 = GUNIV3DAIUSDC1 0.0%,   1 =  
+    yieldBearingNr = 2 #Currently: UNIV2DAIUSDC 0.03%
+    #0 = GUNIV3DAIUSDC1 0.0%,   1 = GUNIV3DAIUSDC1 0.05%; 2 = UNIV2DAIUSDC 0.3%  
     yield yieldBearingNr
 #######################################################
 @pytest.fixture
@@ -49,12 +49,12 @@ def partnerToken(dai, usdc, wantNr):
     yield token_address[wantNr]
 
 @pytest.fixture
-def yieldBearing(guniv3daiusdc1, guniv3daiusdc2, yieldBearingNr):   
+def yieldBearing(guniv3daiusdc1, guniv3daiusdc2, univ2daiusdc, yieldBearingNr):   
     #signifies want token given by wantNr
     yieldBearing_address = [
     guniv3daiusdc1,   #0 = GUNIV3DAIUSDC1 0.05%
     guniv3daiusdc2,   #1 = GUNIV3DAIUSDC2 0.01%
-    univ2daiusdc, #2 = UNIV2DAIUSDC
+    univ2daiusdc,     #2 = UNIV2DAIUSDC   0.3%
     ]
     yield yieldBearing_address[yieldBearingNr]
 
@@ -317,6 +317,7 @@ def gemJoinAdapter(yieldBearingNr):
     gemJoin = [
     "0xbFD445A97e7459b0eBb34cfbd3245750Dba4d7a4",   #0 = GUNIV3DAIUSDC1 0.05%
     "0xA7e4dDde3cBcEf122851A7C8F7A55f23c0Daf335",   #1 = GUNIV3DAIUSDC2 0.01%
+    "0xA81598667AC561986b70ae11bBE2dd5348ed4327",   #2 = UNIV2DAIUSDC   0.01%
     ]
     yield Contract(gemJoin[yieldBearingNr])
 
@@ -376,7 +377,7 @@ def test_strategy(
     strategy = strategist.deploy(
         TestStrategyChoice,
         vault,
-        "Strategy-Maker-lev-GUNIV3DAIUSDC",
+        "Strategy-Maker-lev-UNIV2DAIUSDC",
         #ilk_want,
         #ilk_yieldBearing,
         #gemJoinAdapter,
@@ -424,6 +425,7 @@ def ilk_yieldBearing(yieldBearingNr):
     ilk_hashes = [
     "0x47554e49563344414955534443312d4100000000000000000000000000000000",   #0 = GUNIV3DAIUSDC1 0.05%
     "0x47554e49563344414955534443322d4100000000000000000000000000000000",   #1 = GUNIV3DAIUSDC2 0.01%
+    "0x554e495632444149555344432d41000000000000000000000000000000000000",   #2 = UNIV2DAIUSDC   0.3%
     ]
     yield ilk_hashes[yieldBearingNr]
 
@@ -465,7 +467,7 @@ def cloner(
     cloner = strategist.deploy(
         MakerDaiDelegateClonerChoice,
         vault,
-        "Strategy-Maker-lev-GUNIV3DAIUSDC",
+        "Strategy-Maker-lev-UNIV2DAIUSDC",
         #ilk_want,
         #ilk_yieldBearing,
         #gemJoinAdapter,
