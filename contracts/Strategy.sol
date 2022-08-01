@@ -8,7 +8,6 @@ import {IERC20,Address} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol"
 import "./libraries/MakerDaiDelegateLib.sol";
 import "../interfaces/yearn/IBaseFee.sol";
 import "../interfaces/yearn/IVault.sol";
-import "../interfaces/GUNI/GUniPool.sol";
 
 contract Strategy is BaseStrategy {
     using Address for address;
@@ -16,16 +15,6 @@ contract Strategy is BaseStrategy {
     //event Debug(uint256 _number, uint _value);
 
     enum Action {WIND, UNWIND}
-
-    //GUNIDAIUSDC1 - Gelato Uniswap DAI/USDC LP - 0.05% fee
-    //GUniPool internal constant yieldBearing = GUniPool(0xAbDDAfB225e10B90D798bB8A886238Fb835e2053);
-    //bytes32 internal constant ilk_yieldBearing = 0x47554e49563344414955534443312d4100000000000000000000000000000000;
-    //address internal constant gemJoinAdapter = 0xbFD445A97e7459b0eBb34cfbd3245750Dba4d7a4;
-    
-    //GUNIDAIUSDC2 - Gelato Uniswap DAI/USDC2 LP 2 - 0.01% fee
-    // GUniPool internal constant yieldBearing = GUniPool(0x50379f632ca68D36E50cfBC8F78fe16bd1499d1e);
-    // bytes32 internal constant ilk_yieldBearing = 0x47554e49563344414955534443322d4100000000000000000000000000000000;
-    // address internal constant gemJoinAdapter = 0xA7e4dDde3cBcEf122851A7C8F7A55f23c0Daf335;
 
     //UNIV2DAIUSDC - UniswapV2 DAI/USDC LP - 0.01% fee
     IUniswapV2Pair internal constant yieldBearing = IUniswapV2Pair(0xAE461cA67B15dc8dc81CE7615e0320dA1A9aB8D5);
@@ -113,7 +102,7 @@ contract Strategy is BaseStrategy {
         upperRebalanceTolerance = (20 * WAD) / 10000;
         lowerRebalanceTolerance = (20 * WAD) / 10000;
 
-        // Minimum collateralization ratio for GUNIV3DAIUSDC is 102.3% == 10230
+        // Minimum collateralization ratio for UNIV2DAIUSDC is 102.3% == 10230
         collateralizationRatio = (10230 * WAD) / 10000;
 
     }
