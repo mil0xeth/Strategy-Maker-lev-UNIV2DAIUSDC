@@ -19,7 +19,7 @@ def MakerDaiDelegateClonerChoice(MakerDaiDelegateCloner):
 #Decide on wantToken = token
 @pytest.fixture(autouse=True)
 def wantNr():    
-    wantNr = 0 #Currently: 
+    wantNr = 1 #Currently: USDC
     #0 = DAI,   1 = USDC 
     yield wantNr
 #######################################################
@@ -152,10 +152,9 @@ def token_whale_BIG(accounts, wantNr, dai_whale):
 
 @pytest.fixture
 def yieldBearing_whale(accounts, yieldBearingNr, token_whale, yieldBearing, token, partnerToken, strategy):
-    token.approve(yieldBearing, 100000000000000000000e18, {"from": token_whale})
-    partnerToken.approve(yieldBearing, 10000000000000000000000e6, {"from": token_whale})
-    #yieldBearing.mint(yieldBearing.getMintAmounts(token.balanceOf(token_whale)*0.1, partnerToken.balanceOf(token_whale)*0.1)[2], token_whale, {"from": token_whale})
-    yield token_whale
+    partnerToken.approve(yieldBearing, 100000000000000000000e18, {"from": token_whale})
+    token.approve(yieldBearing, 10000000000000000000000e6, {"from": token_whale})
+    yieldBearing.mint(yieldBearing.getMintAmounts(partnerToken.balanceOf(token_whale)*0.1, token.balanceOf(token_whale)*0.1)[2], token_whale, {"from": token_whale})
 
 @pytest.fixture
 def weth_amount(user, weth):
