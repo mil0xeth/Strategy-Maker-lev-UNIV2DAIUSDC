@@ -3,6 +3,7 @@ from brownie import Contract
 import pytest
 
 
+
 def test_operation(
     gov, chain, accounts, token, vault, strategy, user, amount, RELATIVE_APPROX, token_whale
 ):
@@ -25,6 +26,7 @@ def test_operation(
     assert ( pytest.approx(token.balanceOf(user), rel=RELATIVE_APPROX) == user_balance_before )
 
 
+@pytest.mark.skip
 def test_emergency_exit(
     gov, chain, accounts, token, vault, strategy, user, strategist, amount, RELATIVE_APPROX
 ):
@@ -42,6 +44,7 @@ def test_emergency_exit(
     assert strategy.estimatedTotalAssets() < amount
 
 
+@pytest.mark.skip
 def test_profitable_harvest(
     gov,token_whale, chain, accounts, token, vault, strategy, user, strategist, amount, RELATIVE_APPROX
 ):
@@ -70,6 +73,7 @@ def test_profitable_harvest(
     assert vault.pricePerShare() > before_pps
 
 
+@pytest.mark.skip
 def test_change_debt(
     chain, gov, token, vault, strategy, user, strategist, amount, RELATIVE_APPROX
 ):
@@ -96,6 +100,7 @@ def test_change_debt(
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == half
 
 
+@pytest.mark.skip
 def test_sweep(gov, vault, strategy, token, user, amount, weth, weth_amout):
     # Strategy want token doesn't work
     token.transfer(strategy, amount, {"from": user})
@@ -121,6 +126,7 @@ def test_sweep(gov, vault, strategy, token, user, amount, weth, weth_amout):
     assert weth.balanceOf(gov) == weth_amout + before_balance
 
 
+@pytest.mark.skip
 def test_triggers(
     chain, gov, vault, strategy, token, amount, user, weth, weth_amout, strategist
 ):

@@ -110,9 +110,9 @@ def dai():
     yield Contract(dai_address)
 
 @pytest.fixture
-def usdc():
+def usdc(dai):
     token_address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
-    yield Contract(token_address)
+    yield Contract.from_abi("usdc", token_address, dai.abi)
 
 #@pytest.fixture
 #def steth_whale(accounts):
@@ -154,7 +154,8 @@ def token_whale_BIG(accounts, wantNr, dai_whale):
 def yieldBearing_whale(accounts, yieldBearingNr, token_whale, yieldBearing, token, partnerToken, strategy):
     partnerToken.approve(yieldBearing, 100000000000000000000e18, {"from": token_whale})
     token.approve(yieldBearing, 10000000000000000000000e6, {"from": token_whale})
-    yieldBearing.mint(yieldBearing.getMintAmounts(partnerToken.balanceOf(token_whale)*0.1, token.balanceOf(token_whale)*0.1)[2], token_whale, {"from": token_whale})
+    # yieldBearing.mint(yieldBearing.getMintAmounts(partnerToken.balanceOf(token_whale)*0.1, token.balanceOf(token_whale)*0.1)[2], token_whale, {"from": token_whale})
+    yield token_whale
 
 @pytest.fixture
 def weth_amount(user, weth):
