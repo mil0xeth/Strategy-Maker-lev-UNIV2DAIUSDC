@@ -425,14 +425,14 @@ library MakerDaiDelegateLib {
     //get amount of want in Wei that is received for 1 yieldBearing
     function getWantPerYieldBearing() internal view returns (uint256){
         //The returned tuple contains (DAI amount, USDC amount) - for want=dai:
-        (uint256 otherTokenUnderlyingBalance, uint256 wantUnderlyingBalance) = yieldBearing.getUnderlyingBalances();
+        (uint256 otherTokenUnderlyingBalance, uint256 wantUnderlyingBalance, ) = yieldBearing.getReserves();
         return wantUnderlyingBalance.add(otherTokenUnderlyingBalance.div(1e12)).mul(WAD).div(yieldBearing.totalSupply());
     }
 
     //get amount of borrowToken in Wei that is received for 1 yieldBearing
     function getBorrowTokenPerYieldBearing() internal view returns (uint256){
         //The returned tuple contains (DAI amount, USDC amount) - for want=dai:
-        (uint256 borrowTokenUnderlyingBalance, uint256 otherTokenUnderlyingBalance) = yieldBearing.getUnderlyingBalances();
+        (uint256 borrowTokenUnderlyingBalance, uint256 otherTokenUnderlyingBalance, ) = yieldBearing.getReserves();
         return borrowTokenUnderlyingBalance.add(otherTokenUnderlyingBalance.mul(1e12)).mul(WAD).div(yieldBearing.totalSupply());
     }
 
@@ -454,13 +454,15 @@ library MakerDaiDelegateLib {
 
     // ----------------- TOKEN CONVERSIONS -----------------
 
+    uint256 public constant wantTo18Conversion = 1e12;
+
     function _convertBorrowTokenAmountToWant(uint256 _amount)
         internal
         view
         returns (uint256)
     {
         //want=usdc:
-        return _amount.div(1e12);
+        return _amount.div(wantTo18Conversion);
     }
 
     function _convertWantAmountToBorrowToken(uint256 _amount)
@@ -469,7 +471,7 @@ library MakerDaiDelegateLib {
         returns (uint256)
     {
         //want=usdc:
-        return _amount.mul(1e12);
+        return _amount.mul(wantTo18Conversion);
     }
 
     // ----------------- INTERNAL FUNCTIONS -----------------
@@ -496,7 +498,7 @@ library MakerDaiDelegateLib {
             return 0;
         }
         _amount = Math.min(_amount, balanceOfBorrowToken());
-        (uint256 borrowTokenRatio, uint256 wantRatio) = yieldBearing.getUnderlyingBalances();
+        (uint256 borrowTokenRatio, uint256 wantRatio, ) = yieldBearing.getReserves();
         borrowTokenRatio = borrowTokenRatio.mul(WAD).div(yieldBearing.totalSupply());
         wantRatio = wantRatio.mul(WAD).mul(wantTo18Conversion).div(yieldBearing.totalSupply());
         uint256 borrowTokenAmountForMint = _amount.mul(borrowTokenRatio).div(borrowTokenRatio + wantRatio);
@@ -510,8 +512,7 @@ library MakerDaiDelegateLib {
         uint256 wantBalance = balanceOfWant();
         _checkAllowance(address(yieldBearing), address(borrowToken), borrowTokenAmountForMint);
         _checkAllowance(address(yieldBearing), address(want), wantBalance);      
-        (,,uint256 mintAmount) = yieldBearing.getMintAmounts(borrowTokenAmountForMint, wantBalance); 
-        yieldBearing.mint(mintAmount, address(this));
+        (,,uint256 mintAmount) = router.addLiquidity(address(borrowToken), address(want), borrowTokenAmountForMint, wantBalance, 0, 0, address(this), block.timestamp);
         return balanceOfYieldBearing();
     }
 
@@ -520,7 +521,9 @@ library MakerDaiDelegateLib {
             return;
         }
         //Burn the yieldBearing token to unlock DAI and USDC:
-        yieldBearing.burn(Math.min(_amount, balanceOfYieldBearing()), address(this));
+        uint256 yieldBearingAmountToBurn = Math.min(_amount, balanceOfYieldBearing());
+        _checkAllowance(address(router), address(yieldBearing), yieldBearingAmountToBurn);
+        router.removeLiquidity(address(borrowToken), address(want), yieldBearingAmountToBurn, 0, 0, address(this),block.timestamp);
 
         //Amount of want after burning:
         uint256 wantBalance = balanceOfWant();

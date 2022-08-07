@@ -99,9 +99,9 @@ contract Strategy is BaseStrategy {
         require(cdpId > 0); // dev: error opening cdp
 
         // Current ratio can drift
-        // Allow additional 0.002 == 0.2% in any direction
-        lowerRebalanceTolerance = (20 * WAD) / 10000;
+        // Allow additional 0.002 = 0.2% in any direction by default ==> 102.5% upper, 102.1% lower
         upperRebalanceTolerance = (20 * WAD) / 10000;
+        lowerRebalanceTolerance = (20 * WAD) / 10000;
 
         // Minimum collateralization ratio for UNIV2DAIUSDC is 102.3% == 10230
         collateralizationRatio = (10230 * WAD) / 10000;
