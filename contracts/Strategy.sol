@@ -12,7 +12,7 @@ import "../interfaces/yearn/IVault.sol";
 contract Strategy is BaseStrategy {
     using Address for address;
 
-    event Debug(uint256 _number, uint _value);
+    // event Debug(uint256 _number, uint _value);
 
     enum Action {WIND, UNWIND}
 
