@@ -12,7 +12,7 @@ import "../interfaces/yearn/IVault.sol";
 contract Strategy is BaseStrategy {
     using Address for address;
 
-    //event Debug(uint256 _number, uint _value);
+    event Debug(uint256 _number, uint _value);
 
     enum Action {WIND, UNWIND}
 
@@ -103,7 +103,8 @@ contract Strategy is BaseStrategy {
         lowerRebalanceTolerance = (20 * WAD) / 10000;
 
         // Minimum collateralization ratio for UNIV2DAIUSDC is 102.3% == 10230
-        collateralizationRatio = (10230 * WAD) / 10000;
+        // collateralizationRatio = (10230 * WAD) / 10000;
+        collateralizationRatio = (10530 * WAD) / 10000;
 
     }
 
@@ -420,7 +421,7 @@ contract Strategy is BaseStrategy {
         return yieldBearing.balanceOf(address(this));
     }
 
-    //get amount of want in Wei that is received for 1 yieldBearing
+    //get amount of Want in Wei that is received for 1 yieldBearing
     function getWantPerYieldBearing() public view returns (uint256){
         //The returned tuple contains (DAI amount, USDC amount) - for want=dai:
         (uint256 otherTokenUnderlyingBalance, uint256 wantUnderlyingBalance, ) = yieldBearing.getReserves();    

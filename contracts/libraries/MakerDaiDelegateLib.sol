@@ -58,7 +58,7 @@ library MakerDaiDelegateLib {
     using Address for address;
     using SafeMath for uint256;
 
-    //event DebugDelegate(uint256 _number, uint _value);
+    event DebugDelegate(uint256 _number, uint _value);
 
     enum Action {WIND, UNWIND}
 
@@ -422,7 +422,7 @@ library MakerDaiDelegateLib {
         _swapBorrowTokenToWant(balanceOfBorrowToken().sub(flashloanRepayAmount));
     }
 
-    //get amount of want in Wei that is received for 1 yieldBearing
+    //get amount of Want in Wei that is received for 1 yieldBearing
     function getWantPerYieldBearing() internal view returns (uint256){
         (uint256 otherTokenUnderlyingBalance, uint256 wantUnderlyingBalance, ) = yieldBearing.getReserves();
         return wantUnderlyingBalance.add(otherTokenUnderlyingBalance.div(1e12)).mul(WAD).div(yieldBearing.totalSupply());
@@ -486,8 +486,8 @@ library MakerDaiDelegateLib {
         //Mint yieldBearing:
         borrowTokenAmountForMint = Math.min(borrowTokenAmountForMint, balanceOfBorrowToken());
         uint256 wantBalance = balanceOfWant();
-        _checkAllowance(address(yieldBearing), address(borrowToken), borrowTokenAmountForMint);
-        _checkAllowance(address(yieldBearing), address(want), wantBalance);      
+        _checkAllowance(address(router), address(borrowToken), borrowTokenAmountForMint);
+        _checkAllowance(address(router), address(want), wantBalance);      
         (,,uint256 mintAmount) = router.addLiquidity(address(borrowToken), address(want), borrowTokenAmountForMint, wantBalance, 0, 0, address(this), block.timestamp);
         return balanceOfYieldBearing();
     }
