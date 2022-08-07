@@ -103,7 +103,6 @@ contract Strategy is BaseStrategy {
         lowerRebalanceTolerance = (20 * WAD) / 10000;
 
         // Minimum collateralization ratio for UNIV2DAIUSDC is 102.3% == 10230
-        // collateralizationRatio = (10230 * WAD) / 10000;
         collateralizationRatio = (10230 * WAD) / 10000;
 
     }

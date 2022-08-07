@@ -58,7 +58,7 @@ library MakerDaiDelegateLib {
     using Address for address;
     using SafeMath for uint256;
 
-    event DebugDelegate(uint256 _number, uint _value);
+    // event DebugDelegate(uint256 _number, uint _value);
 
     enum Action {WIND, UNWIND}
 

@@ -3,7 +3,6 @@ from brownie import Contract
 import pytest
 
 
-
 def test_operation(
     gov, chain, accounts, token, vault, strategy, user, amount, RELATIVE_APPROX, token_whale
 ):
