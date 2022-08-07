@@ -86,7 +86,7 @@ contract Strategy is BaseStrategy {
 
         //10M$ dai or usdc maximum trade
         maxSingleTrade = 10_000_000 * 1e6;
-        //10M$ dai or usdc maximum trade
+        //0.1$ dai or usdc minimum trade
         minSingleTrade = 1 * 1e5;
 
         creditThreshold = 1e6 * 1e6;
@@ -185,9 +185,9 @@ contract Strategy is BaseStrategy {
     function estimatedTotalAssets() public view override returns (uint256) {  //measured in WANT
         return
                 balanceOfWant() //free WANT balance in wallet
-                .add(_convertBorrowTokenAmountToWant(balanceOfBorrowToken()))
+                .add(balanceOfBorrowToken().div(1e12))
                 .add(balanceOfYieldBearing().add(balanceOfMakerVault()).mul(getWantPerYieldBearing()).div(WAD))  
-                .sub(_convertBorrowTokenAmountToWant(balanceOfDebt()));  //DAI debt of maker --> WANT
+                .sub(balanceOfDebt().div(1e12));  //DAI debt of maker --> WANT
     }
 
     function prepareReturn(uint256 _debtOutstanding)
@@ -377,14 +377,14 @@ contract Strategy is BaseStrategy {
     ) external returns (bytes32) {
         require(msg.sender == flashmint);
         require(initiator == address(this));
-        (Action action, uint256 _cdpId, uint256 _wantAmountInitialOrRequested, uint256 flashloanAmount, uint256 _collateralizationRatio) = abi.decode(data, (Action, uint256, uint256, uint256, uint256));
+        (Action action, uint256 _cdpId, uint256 _borrowAmountInitialOrRequested, uint256 flashloanAmount, uint256 _collateralizationRatio) = abi.decode(data, (Action, uint256, uint256, uint256, uint256));
         //amount = flashloanAmount, then add fee
         amount = amount.add(fee);
         _checkAllowance(address(flashmint), address(borrowToken), amount);
         if (action == Action.WIND) {
-            MakerDaiDelegateLib._wind(_cdpId, amount, _wantAmountInitialOrRequested, _collateralizationRatio);
+            MakerDaiDelegateLib._wind(_cdpId, amount, _borrowAmountInitialOrRequested, _collateralizationRatio);
         } else if (action == Action.UNWIND) {
-            MakerDaiDelegateLib._unwind(_cdpId, amount, _wantAmountInitialOrRequested, _collateralizationRatio);
+            MakerDaiDelegateLib._unwind(_cdpId, amount, _borrowAmountInitialOrRequested, _collateralizationRatio);
         }
         return keccak256("ERC3156FlashBorrower.onFlashLoan");
     }
@@ -431,8 +431,8 @@ contract Strategy is BaseStrategy {
      //get amount of borrowToken in Wei that is received for 1 yieldBearing
     function getBorrowTokenPerYieldBearing() public view returns (uint256){
         //The returned tuple contains (DAI amount, USDC amount) - for want=dai:
-        (uint256 borrowTokenUnderlyingBalance, uint256 otherTokenUnderlyingBalance, ) = yieldBearing.getReserves();
-        return borrowTokenUnderlyingBalance.add(otherTokenUnderlyingBalance.mul(1e12)).mul(WAD).div(yieldBearing.totalSupply());
+        (uint256 borrowTokenUnderlyingBalance, uint256 wantUnderlyingBalance, ) = yieldBearing.getReserves();
+        return borrowTokenUnderlyingBalance.add(wantUnderlyingBalance.mul(1e12)).mul(WAD).div(yieldBearing.totalSupply());
     }
 
     function balanceOfDebt() public view returns (uint256) {
@@ -453,7 +453,7 @@ contract Strategy is BaseStrategy {
         return MakerDaiDelegateLib.getPessimisticRatioOfCdpWithExternalPrice(cdpId,ilk_yieldBearing,getBorrowTokenPerYieldBearing(),WAD);
     }
 
-    function getHypotheticalMakerVaultRatioWithMultiplier(uint256 _otherTokenMultiplier, uint256 _wantMultiplier) public view returns (uint256) {
+    function getHypotheticalMakerVaultRatioWithMultiplier(uint256 _wantMultiplier, uint256 _otherTokenMultiplier) public view returns (uint256) {
         //The Multipliers are basispoints 100.01 = +0.01% increase of DAI price. Multipliers of 10000 are returning the CurrentMakerVaultRatio()
         //The returned tuple contains (DAI amount, USDC amount) - for want=dai:
         (uint256 otherTokenUnderlyingBalance, uint256 wantUnderlyingBalance, ) = yieldBearing.getReserves();
@@ -480,18 +480,5 @@ contract Strategy is BaseStrategy {
             daiToMint,
             balanceOfDebt()
         );
-    }
-
-    // ----------------- TOKEN CONVERSIONS -----------------
-    
-    function _convertBorrowTokenAmountToWant(uint256 _amount)
-        internal
-        view
-        returns (uint256)
-    {
-        //want=dai:
-        //return _amount;
-        //want=usdc:
-        return _amount.div(1e12);
     }
 }
