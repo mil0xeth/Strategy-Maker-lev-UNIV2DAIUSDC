@@ -104,7 +104,7 @@ contract Strategy is BaseStrategy {
 
         // Minimum collateralization ratio for UNIV2DAIUSDC is 102.3% == 10230
         // collateralizationRatio = (10230 * WAD) / 10000;
-        collateralizationRatio = (10530 * WAD) / 10000;
+        collateralizationRatio = (10230 * WAD) / 10000;
 
     }
 
@@ -377,14 +377,14 @@ contract Strategy is BaseStrategy {
     ) external returns (bytes32) {
         require(msg.sender == flashmint);
         require(initiator == address(this));
-        (Action action, uint256 _cdpId, uint256 _borrowAmountInitialOrRequested, uint256 flashloanAmount, uint256 _collateralizationRatio) = abi.decode(data, (Action, uint256, uint256, uint256, uint256));
+        (Action action, uint256 _cdpId, uint256 _wantAmountInitialOrRequested, uint256 flashloanAmount, uint256 _collateralizationRatio) = abi.decode(data, (Action, uint256, uint256, uint256, uint256));
         //amount = flashloanAmount, then add fee
         amount = amount.add(fee);
         _checkAllowance(address(flashmint), address(borrowToken), amount);
         if (action == Action.WIND) {
-            MakerDaiDelegateLib._wind(_cdpId, amount, _borrowAmountInitialOrRequested, _collateralizationRatio);
+            MakerDaiDelegateLib._wind(_cdpId, amount, _wantAmountInitialOrRequested, _collateralizationRatio);
         } else if (action == Action.UNWIND) {
-            MakerDaiDelegateLib._unwind(_cdpId, amount, _borrowAmountInitialOrRequested, _collateralizationRatio);
+            MakerDaiDelegateLib._unwind(_cdpId, amount, _wantAmountInitialOrRequested, _collateralizationRatio);
         }
         return keccak256("ERC3156FlashBorrower.onFlashLoan");
     }

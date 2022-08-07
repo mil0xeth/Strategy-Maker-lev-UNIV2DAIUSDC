@@ -367,6 +367,7 @@ library MakerDaiDelegateLib {
 
     function _wind(uint256 cdpId, uint256 flashloanRepayAmount, uint256 wantAmountInitial, uint256) public {
         //repayAmount includes any fees
+        _swapWantToBorrowToken(wantAmountInitial);
         uint256 yieldBearingAmountToLock = _swapBorrowTokenToYieldBearing(balanceOfBorrowToken());
         //Check allowance to lock collateral 
         _checkAllowance(gemJoinAdapter, address(yieldBearing), yieldBearingAmountToLock);
@@ -511,15 +512,15 @@ library MakerDaiDelegateLib {
         psm.sellGem(address(this), wantBalance);
     }
 
-    // function _swapWantToBorrowToken(uint256 _wantAmount) public {
-    //     if (_wantAmount > 1000 && balanceOfWant() >= _wantAmount){
-    //         //Swap through PSM Want ---> BorrowToken: USDC-> DAI
-    //         address psmGemJoin = psm.gemJoin();
-    //         _checkAllowance(psmGemJoin, address(want), _wantAmount);
-    //         //sellGem means: USDC --> DAI, gotta approve USDC amount in 1e6, gotta sellGem amount in 1e6
-    //         psm.sellGem(address(this), _wantAmount);
-    //     }
-    // }
+    function _swapWantToBorrowToken(uint256 _wantAmount) public {
+        if (_wantAmount > 1000 && balanceOfWant() >= _wantAmount){
+            //Swap through PSM Want ---> BorrowToken: USDC-> DAI
+            address psmGemJoin = psm.gemJoin();
+            _checkAllowance(psmGemJoin, address(want), _wantAmount);
+            //sellGem means: USDC --> DAI, gotta approve USDC amount in 1e6, gotta sellGem amount in 1e6
+            psm.sellGem(address(this), _wantAmount);
+        }
+    }
 
     function _swapBorrowTokenToWant(uint256 _borrowTokenAmount) public {
         uint256 borrowTokenBalance = balanceOfBorrowToken();

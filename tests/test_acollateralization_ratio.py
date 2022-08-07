@@ -6,13 +6,13 @@ wad = 10 ** 18
 def calc_expected_collateralization_ratio(strategy, deposit_amount):
     existing_collateral_balance = strategy.balanceOfMakerVault()
     want_per_yield_bearing = strategy.getWantPerYieldBearing()
-    existing_collateral = existing_collateral_balance * want_per_yield_bearing / wad
+    existing_collateral = existing_collateral_balance * want_per_yield_bearing / 1e6
     existing_debt = strategy.balanceOfDebt()
     max_debt_available = strategy.balanceOfDaiAvailableToMint()
     target_collateral_ratio = strategy.collateralizationRatio()
-    borrow_amount_needed = deposit_amount * wad / (target_collateral_ratio - wad)
+    borrow_amount_needed = deposit_amount * 1e12 * wad / (target_collateral_ratio - wad)
     borrow_amount = min(borrow_amount_needed, max_debt_available)
-    expected_collateralization_ratio = (existing_collateral + borrow_amount + deposit_amount) * wad / (existing_debt + borrow_amount)
+    expected_collateralization_ratio = (existing_collateral + borrow_amount + deposit_amount * 1e12) * wad / (existing_debt + borrow_amount)
     return expected_collateralization_ratio
 
 
@@ -65,7 +65,7 @@ def test_vault_ratio_calculation_on_BIGTIME_total_withdraw(
 
 
     # Withdraw 100% of the assets, with 0.1% maxLoss
-    withdraw_tx = vault.withdraw(amountBIGTIME*0.25, user, 1000, {"from": user})
+    withdraw_tx = vault.withdraw(amountBIGTIME*0.125, user, 1000, {"from": user})
     test_strategy.harvest({"from": gov})
 
     # Strategy should restore collateralization ratio to target value on withdraw
@@ -446,7 +446,7 @@ def test_vault_ratio_calculation_on_sandwiched_total_withdraw(
     # Initial ratio is 0 because there is no collateral locked
     assert test_strategy.getCurrentMakerVaultRatio() == 0
     #sandwich:
-    sandwich = "1000 ether"
+    sandwich = "1000000000" # 1000 USDC
     token.approve(vault.address, sandwich, {"from": token_whale})
     vault.deposit(sandwich, {"from": token_whale})
 
