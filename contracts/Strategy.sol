@@ -8,7 +8,6 @@ import {IERC20,Address} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol"
 import "./libraries/MakerDaiDelegateLib.sol";
 import "../interfaces/yearn/IBaseFee.sol";
 import "../interfaces/yearn/IVault.sol";
-import "../interfaces/GUNI/GUniPool.sol";
 
 contract Strategy is BaseStrategy {
     using Address for address;
