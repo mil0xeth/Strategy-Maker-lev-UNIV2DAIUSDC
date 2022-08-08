@@ -381,6 +381,8 @@ library MakerDaiDelegateLib {
             flashloanRepayAmount,
             debtForCdp(cdpId, ilk_yieldBearing)
         );
+        // want = usdc
+        _swapBorrowTokenToWant(balanceOfBorrowToken().sub(flashloanRepayAmount));
     }
 
     function _unwind(uint256 cdpId, uint256 flashloanRepayAmount, uint256 wantAmountRequested, uint256 targetCollateralizationRatio) public {
@@ -504,29 +506,19 @@ library MakerDaiDelegateLib {
         _checkAllowance(address(router), address(yieldBearing), yieldBearingAmountToBurn);
         router.removeLiquidity(address(borrowToken), address(want), yieldBearingAmountToBurn, 0, 0, address(this),block.timestamp);
 
-        //Amount of want after burning:
-        uint256 wantBalance = balanceOfWant();
-
-        //Swap through PSM Want ---> BorrowToken: USDC-> DAI
-        address psmGemJoin = psm.gemJoin();
-        _checkAllowance(psmGemJoin, address(want), wantBalance);
-        //sellGem means: USDC --> DAI, gotta approve USDC amount in 1e6, gotta sellGem amount in 1e6
-        psm.sellGem(address(this), wantBalance);
+        _swapWantToBorrowToken(balanceOfWant());
     }
 
     function _swapWantToBorrowToken(uint256 _wantAmount) public {
-        if (_wantAmount > 1000 && balanceOfWant() >= _wantAmount){
-            //Swap through PSM Want ---> BorrowToken: USDC-> DAI
-            address psmGemJoin = psm.gemJoin();
-            _checkAllowance(psmGemJoin, address(want), _wantAmount);
-            //sellGem means: USDC --> DAI, gotta approve USDC amount in 1e6, gotta sellGem amount in 1e6
-            psm.sellGem(address(this), _wantAmount);
-        }
+        //Swap through PSM Want ---> BorrowToken: USDC-> DAI
+        address psmGemJoin = psm.gemJoin();
+        _checkAllowance(psmGemJoin, address(want), _wantAmount);
+        //sellGem means: USDC --> DAI, gotta approve USDC amount in 1e6, gotta sellGem amount in 1e6
+        psm.sellGem(address(this), _wantAmount);
     }
 
     function _swapBorrowTokenToWant(uint256 _borrowTokenAmount) public {
-        uint256 borrowTokenBalance = balanceOfBorrowToken();
-        if (_borrowTokenAmount > 1000 && borrowTokenBalance >= _borrowTokenAmount){
+        if (_borrowTokenAmount > 1000 && balanceOfBorrowToken() >= _borrowTokenAmount){
             _checkAllowance(address(psm), address(borrowToken), _borrowTokenAmount);
             //buyGem means: DAI --> USDC, gotta approve DAI amount in 1e18, gotta buyGem amount in 1e6  
             psm.buyGem(address(this), _borrowTokenAmount.div(wantTo18Conversion));
