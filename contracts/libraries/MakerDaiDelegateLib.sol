@@ -426,13 +426,13 @@ library MakerDaiDelegateLib {
     //get amount of Want in Wei that is received for 1 yieldBearing
     function getWantPerYieldBearing() internal view returns (uint256){
         (uint256 otherTokenUnderlyingBalance, uint256 wantUnderlyingBalance, ) = yieldBearing.getReserves();
-        return wantUnderlyingBalance.add(otherTokenUnderlyingBalance.div(1e12)).mul(WAD).div(yieldBearing.totalSupply());
+        return wantUnderlyingBalance.add(otherTokenUnderlyingBalance.div(wantTo18Conversion)).mul(WAD).div(yieldBearing.totalSupply());
     }
 
     //get amount of borrowToken in Wei that is received for 1 yieldBearing
     function getBorrowTokenPerYieldBearing() internal view returns (uint256){
         (uint256 borrowTokenUnderlyingBalance, uint256 wantUnderlyingBalance, ) = yieldBearing.getReserves();
-        return borrowTokenUnderlyingBalance.add(wantUnderlyingBalance.mul(1e12)).mul(WAD).div(yieldBearing.totalSupply());
+        return borrowTokenUnderlyingBalance.add(wantUnderlyingBalance.mul(wantTo18Conversion)).mul(WAD).div(yieldBearing.totalSupply());
     }
 
     function balanceOfWant() internal view returns (uint256) {

@@ -55,8 +55,8 @@ def test_vault_ratio_calculation_on_BIGTIME_total_withdraw(
 
     expected_collateralization_ratio = calc_expected_collateralization_ratio(test_strategy, amountBIGTIME*0.25)
 
-    token.approve(vault.address, amountBIGTIME*0.25, {"from": user})
-    vault.deposit(amountBIGTIME*0.25, {"from": user})
+    token.approve(vault.address, amountBIGTIME*0.24, {"from": user})
+    vault.deposit(amountBIGTIME*0.24, {"from": user})
     chain.sleep(1)
     test_strategy.harvest({"from": gov})
 
@@ -65,7 +65,7 @@ def test_vault_ratio_calculation_on_BIGTIME_total_withdraw(
 
 
     # Withdraw 100% of the assets, with 0.1% maxLoss
-    withdraw_tx = vault.withdraw(amountBIGTIME*0.2, user, 1000, {"from": user})
+    withdraw_tx = vault.withdraw(amountBIGTIME*0.24, user, 1000, {"from": user})
     test_strategy.harvest({"from": gov})
 
     # Strategy should restore collateralization ratio to target value on withdraw
