@@ -123,7 +123,7 @@ def usdc(dai):
 #    yield accounts.at("0x62e41b1185023bcc14a465d350e1dde341557925") 
 
 @pytest.fixture
-def token_whale(accounts, wantNr, dai_whale):
+def token_whale(accounts, wantNr, usdc_whale):
     #eth_whale = accounts.at("0xda9dfa130df4de4673b89022ee50ff26f6ea73cf", force=True)
     #token_whale_address = [
     #"0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8",   #0 = ETH
@@ -133,10 +133,10 @@ def token_whale(accounts, wantNr, dai_whale):
     #]
     #token_whale_account = accounts.at(token_whale_address[wantNr], force=True) 
     #eth_whale.transfer(token_whale_account, "100000 ether")
-    yield dai_whale
+    yield usdc_whale
 
 @pytest.fixture
-def token_whale_BIG(accounts, wantNr, dai_whale):
+def token_whale_BIG(accounts, wantNr, usdc_whale):
     #eth_whale = accounts.at("0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8", force=True)
     #token_whale_address = [
     #"0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8",   #0 = ETH
@@ -148,7 +148,7 @@ def token_whale_BIG(accounts, wantNr, dai_whale):
     #eth_whale.transfer(token_whale_account, eth_whale.balance()*0.95)
     #ethwrapping.deposit({'from': token_whale_account, 'value': token_whale_account.balance()*0.95})
     #yield token_whale_account
-    yield dai_whale
+    yield usdc_whale
 
 @pytest.fixture
 def yieldBearing_whale(accounts, yieldBearingNr, token_whale, yieldBearing, token, partnerToken, strategy):
@@ -169,6 +169,10 @@ def weth_whale(accounts):
 
 @pytest.fixture
 def dai_whale(accounts):
+    yield accounts.at("0x47ac0fb4f2d84898e4d9e7b4dab3c24507a6d503", force=True)
+
+@pytest.fixture
+def usdc_whale(accounts):
     yield accounts.at("0x47ac0fb4f2d84898e4d9e7b4dab3c24507a6d503", force=True)
 
 @pytest.fixture

@@ -366,8 +366,10 @@ library MakerDaiDelegateLib {
     }
 
     function _wind(uint256 cdpId, uint256 flashloanRepayAmount, uint256 wantAmountInitial, uint256) public {
-        //repayAmount includes any fees
+        // repayAmount includes any fees
+        // want = usdc; Swap USDC in strategy contract to DAI
         _swapWantToBorrowToken(wantAmountInitial);
+        // Use DAI to mint yieldBearing tokens
         uint256 yieldBearingAmountToLock = _swapBorrowTokenToYieldBearing(balanceOfBorrowToken());
         //Check allowance to lock collateral 
         _checkAllowance(gemJoinAdapter, address(yieldBearing), yieldBearingAmountToLock);
