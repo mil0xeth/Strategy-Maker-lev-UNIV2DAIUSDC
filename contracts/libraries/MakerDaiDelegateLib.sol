@@ -58,20 +58,21 @@ library MakerDaiDelegateLib {
     using Address for address;
     using SafeMath for uint256;
 
-    //event DebugDelegate(uint256 _number, uint _value);
+    // event DebugDelegate(uint256 _number, uint _value);
 
     enum Action {WIND, UNWIND}
 
     //uint256 public constant otherTokenTo18Conversion = 10 ** (18 - _otherToken.decimals());
     //Strategy specific addresses:
     //dai:
-    IERC20 internal constant want = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
-    IERC20 internal constant otherToken = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
-    uint256 public constant otherTokenTo18Conversion = 10 ** 12;
+    // IERC20 internal constant want = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
+    // IERC20 internal constant otherToken = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
+    // uint256 public constant otherTokenTo18Conversion = 10 ** 12;
     //usdc:
-    //IERC20 internal constant want = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
-    //IERC20 internal constant otherToken = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
-    //uint256 public constant otherTokenTo18Conversion = 1;
+    IERC20 internal constant want = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
+    IERC20 internal constant otherToken = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
+    uint256 public constant otherTokenTo18Conversion = 1;
+    uint256 public constant wantTo18Conversion = 10 ** 12;
 
     //UNIV2DAIUSDC - UniswapV2 DAI/USDC LP
     IUniswapV2Pair internal constant yieldBearing = IUniswapV2Pair(0xAE461cA67B15dc8dc81CE7615e0320dA1A9aB8D5);
@@ -337,7 +338,7 @@ library MakerDaiDelegateLib {
     ) public {
         wantAmountInitial = Math.min(wantAmountInitial, balanceOfWant());
         //Calculate how much borrowToken to mint to leverage up to targetCollateralizationRatio:
-        uint256 flashloanAmount = wantAmountInitial.mul(RAY).div(targetCollateralizationRatio.mul(1e9).sub(RAY));
+        uint256 flashloanAmount = wantAmountInitial.mul(RAY).div(targetCollateralizationRatio.mul(1e9).sub(RAY)).mul(wantTo18Conversion);
         VatLike vat = VatLike(manager.vat());
         uint256 currentDebt = debtForCdp(cdpId, ilk_yieldBearing);
         flashloanAmount = Math.min(flashloanAmount, _forceMintWithinLimits(vat, ilk_yieldBearing, flashloanAmount, currentDebt));
@@ -365,8 +366,11 @@ library MakerDaiDelegateLib {
     }
 
     function _wind(uint256 cdpId, uint256 flashloanRepayAmount, uint256 wantAmountInitial, uint256) public {
-        //repayAmount includes any fees
-        uint256 yieldBearingAmountToLock = _swapWantToYieldBearing(balanceOfWant());
+        // repayAmount includes any fees
+        // want = usdc; Swap USDC in strategy contract to DAI
+        _swapWantToBorrowToken(wantAmountInitial);
+        // Use DAI to mint yieldBearing tokens
+        uint256 yieldBearingAmountToLock = _swapBorrowTokenToYieldBearing(balanceOfBorrowToken());
         //Check allowance to lock collateral 
         _checkAllowance(gemJoinAdapter, address(yieldBearing), yieldBearingAmountToLock);
         //Lock collateral and borrow dai to repay flashmint
@@ -377,6 +381,8 @@ library MakerDaiDelegateLib {
             flashloanRepayAmount,
             debtForCdp(cdpId, ilk_yieldBearing)
         );
+        // want = usdc
+        _swapBorrowTokenToWant(balanceOfBorrowToken().sub(flashloanRepayAmount));
     }
 
     function _unwind(uint256 cdpId, uint256 flashloanRepayAmount, uint256 wantAmountRequested, uint256 targetCollateralizationRatio) public {
@@ -392,16 +398,17 @@ library MakerDaiDelegateLib {
         //Maximum of all yieldBearing can be requested
         totalRequestedInYieldBearing = Math.min(totalRequestedInYieldBearing, balanceOfYieldBearing());
         
-        _swapYieldBearingToWant(totalRequestedInYieldBearing);
+        _swapYieldBearingToBorrowToken(totalRequestedInYieldBearing);
         //Want amount requested now in wallet
 
         //Lock collateral and borrow dai equivalent to amount given by targetCollateralizationRatio:
         uint256 yieldBearingBalance = balanceOfYieldBearing();
-        uint256 borrowTokenAmountToMint = yieldBearingBalance.mul(getWantPerYieldBearing()).div(targetCollateralizationRatio);
+        uint256 borrowTokenAmountToMint = yieldBearingBalance.mul(getBorrowTokenPerYieldBearing()).div(targetCollateralizationRatio);
         //Check if amount of dai to borrow is above debtFloor. If not, swap everything to want and return.
         if ( borrowTokenAmountToMint <= debtFloor(ilk_yieldBearing).add(1e15)){
-            _swapYieldBearingToWant(balanceOfYieldBearing());
-            yieldBearingBalance = balanceOfYieldBearing();
+            _swapYieldBearingToBorrowToken(balanceOfYieldBearing());
+            // want = usdc
+            _swapBorrowTokenToWant(balanceOfBorrowToken().sub(flashloanRepayAmount));
             return;
         }
         //Make sure to always mint enough to repay the flashloan
@@ -416,13 +423,20 @@ library MakerDaiDelegateLib {
             borrowTokenAmountToMint,
             debtForCdp(cdpId, ilk_yieldBearing)
         );
-        //want=dai: nothing further necessary
+        // want = usdc
+        _swapBorrowTokenToWant(balanceOfBorrowToken().sub(flashloanRepayAmount));
     }
 
     //get amount of Want in Wei that is received for 1 yieldBearing
     function getWantPerYieldBearing() internal view returns (uint256){
-        (uint256 wantUnderlyingBalance, uint256 otherTokenUnderlyingBalance, ) = yieldBearing.getReserves();
-        return (wantUnderlyingBalance.mul(WAD).add(otherTokenUnderlyingBalance.mul(WAD).mul(WAD).div(1e6))).div(yieldBearing.totalSupply());
+        (uint256 otherTokenUnderlyingBalance, uint256 wantUnderlyingBalance, ) = yieldBearing.getReserves();
+        return wantUnderlyingBalance.add(otherTokenUnderlyingBalance.div(wantTo18Conversion)).mul(WAD).div(yieldBearing.totalSupply());
+    }
+
+    //get amount of borrowToken in Wei that is received for 1 yieldBearing
+    function getBorrowTokenPerYieldBearing() internal view returns (uint256){
+        (uint256 borrowTokenUnderlyingBalance, uint256 wantUnderlyingBalance, ) = yieldBearing.getReserves();
+        return borrowTokenUnderlyingBalance.add(wantUnderlyingBalance.mul(wantTo18Conversion)).mul(WAD).div(yieldBearing.totalSupply());
     }
 
     function balanceOfWant() internal view returns (uint256) {
@@ -435,6 +449,10 @@ library MakerDaiDelegateLib {
 
     function balanceOfOtherToken() internal view returns (uint256) {
         return otherToken.balanceOf(address(this));
+    }
+
+    function balanceOfBorrowToken() internal view returns (uint256) {
+        return borrowToken.balanceOf(address(this));
     }
 
     // ----------------- INTERNAL FUNCTIONS -----------------
@@ -456,45 +474,55 @@ library MakerDaiDelegateLib {
         }
     }
 
-    function _swapWantToYieldBearing(uint256 _amount) internal returns (uint256) {
+    function _swapBorrowTokenToYieldBearing(uint256 _amount) internal returns (uint256) {
         if (_amount == 0) {
             return 0;
         }
-        _amount = Math.min(_amount, balanceOfWant());
-        (uint256 wantRatio, uint256 otherTokenRatio, ) = yieldBearing.getReserves();
-        wantRatio = wantRatio.mul(WAD).div(yieldBearing.totalSupply());
-        otherTokenRatio = otherTokenRatio.mul(WAD).mul(otherTokenTo18Conversion).div(yieldBearing.totalSupply());
-        uint256 wantAmountForMint = _amount.mul(wantRatio).div(wantRatio + otherTokenRatio);
-        uint256 wantAmountToSwapToOtherTokenForMint = _amount.mul(otherTokenRatio).div(wantRatio + otherTokenRatio);
-        //Swap through PSM wantAmountToSwapToOtherTokenForMint --> otherToken
-        _checkAllowance(address(psm), address(want), wantAmountToSwapToOtherTokenForMint);
-        psm.buyGem(address(this), wantAmountToSwapToOtherTokenForMint.div(otherTokenTo18Conversion));
-        
+        _amount = Math.min(_amount, balanceOfBorrowToken());
+        (uint256 borrowTokenRatio, uint256 wantRatio, ) = yieldBearing.getReserves();
+        borrowTokenRatio = borrowTokenRatio.mul(WAD).div(yieldBearing.totalSupply());
+        wantRatio = wantRatio.mul(WAD).mul(wantTo18Conversion).div(yieldBearing.totalSupply());
+        uint256 borrowTokenAmountForMint = _amount.mul(borrowTokenRatio).div(borrowTokenRatio + wantRatio);
+        uint256 borrowTokenAmountToSwapToWantForMint = _amount.mul(wantRatio).div(borrowTokenRatio + wantRatio);
+        //Swap through PSM borrowTokenAmountToSwapToWantForMint --> want
+        _checkAllowance(address(psm), address(borrowToken), borrowTokenAmountToSwapToWantForMint);
+        psm.buyGem(address(this), borrowTokenAmountToSwapToWantForMint.div(wantTo18Conversion));
+
         //Mint yieldBearing:
-        wantAmountForMint = Math.min(wantAmountForMint, balanceOfWant());
-        uint256 otherTokenBalance = balanceOfOtherToken();
-        _checkAllowance(address(router), address(want), wantAmountForMint);
-        _checkAllowance(address(router), address(otherToken), otherTokenBalance);      
-        (,,uint256 mintAmount) = router.addLiquidity(address(want), address(otherToken), wantAmountForMint, otherTokenBalance, 0, 0, address(this), block.timestamp);
+        borrowTokenAmountForMint = Math.min(borrowTokenAmountForMint, balanceOfBorrowToken());
+        uint256 wantBalance = balanceOfWant();
+        _checkAllowance(address(router), address(borrowToken), borrowTokenAmountForMint);
+        _checkAllowance(address(router), address(want), wantBalance);      
+        (,,uint256 mintAmount) = router.addLiquidity(address(borrowToken), address(want), borrowTokenAmountForMint, wantBalance, 0, 0, address(this), block.timestamp);
         return balanceOfYieldBearing();
     }
 
-    function _swapYieldBearingToWant(uint256 _amount) internal {
+    function _swapYieldBearingToBorrowToken(uint256 _amount) internal {
         if (_amount == 0) {
             return;
         }
         //Burn the yieldBearing token to unlock DAI and USDC:
         uint256 yieldBearingAmountToBurn = Math.min(_amount, balanceOfYieldBearing());
         _checkAllowance(address(router), address(yieldBearing), yieldBearingAmountToBurn);
-        router.removeLiquidity(address(want), address(otherToken), yieldBearingAmountToBurn, 0, 0, address(this),block.timestamp);
-        
-        //Amount of otherToken after burning:
-        uint256 otherTokenBalance = balanceOfOtherToken();
+        router.removeLiquidity(address(borrowToken), address(want), yieldBearingAmountToBurn, 0, 0, address(this),block.timestamp);
 
-        //Swap through PSM otherToken ---> Want:
+        _swapWantToBorrowToken(balanceOfWant());
+    }
+
+    function _swapWantToBorrowToken(uint256 _wantAmount) public {
+        //Swap through PSM Want ---> BorrowToken: USDC-> DAI
         address psmGemJoin = psm.gemJoin();
-        _checkAllowance(psmGemJoin, address(otherToken), otherTokenBalance);
-        psm.sellGem(address(this), otherTokenBalance);
+        _checkAllowance(psmGemJoin, address(want), _wantAmount);
+        //sellGem means: USDC --> DAI, gotta approve USDC amount in 1e6, gotta sellGem amount in 1e6
+        psm.sellGem(address(this), _wantAmount);
+    }
+
+    function _swapBorrowTokenToWant(uint256 _borrowTokenAmount) public {
+        if (_borrowTokenAmount > 1000 && balanceOfBorrowToken() >= _borrowTokenAmount){
+            _checkAllowance(address(psm), address(borrowToken), _borrowTokenAmount);
+            //buyGem means: DAI --> USDC, gotta approve DAI amount in 1e18, gotta buyGem amount in 1e6  
+            psm.buyGem(address(this), _borrowTokenAmount.div(wantTo18Conversion));
+        }
     }
 
     // This function repeats some code from daiAvailableToMint because it needs

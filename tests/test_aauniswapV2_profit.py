@@ -21,14 +21,13 @@ def test_aauniswapV2_profit(
     vaultAssetsBefore = vault.totalAssets()
     strategyCollateralizationRatioBefore = test_strategy.getCurrentMakerVaultRatio()
 
-    # Swap DAI for USDC to generate fees
-    other_token = Contract('0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48')    # usdc
-    swap_amount = token.balanceOf(token_whale)*0.01
+    # Swap USDC for DAI to generate fees. Note: Swap a smaller amount to avoid imbalance in the Uni V2 pool 
+    swap_amount = token.balanceOf(token_whale)*0.0001
     token.approve(unirouter.address, swap_amount, {'from': token_whale})
     router.swapExactTokensForTokens(
         swap_amount,
         0,
-        [token.address, other_token.address],
+        [token.address, partnerToken.address],
         token_whale.address,
         chain.time() + 1,
         {'from': token_whale}
@@ -38,7 +37,6 @@ def test_aauniswapV2_profit(
     priceAfter = test_strategy.getWantPerYieldBearing()
     strategyAssetsAfter = test_strategy.estimatedTotalAssets()
     strategyCollateralizationRatioAfter = test_strategy.getCurrentMakerVaultRatio()
-
     assert strategyAssetsAfter-strategyAssetsBefore > 0
 
     #collect profits into vault
