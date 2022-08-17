@@ -12,8 +12,6 @@ import "../interfaces/yearn/IVault.sol";
 contract Strategy is BaseStrategy {
     using Address for address;
 
-    // event Debug(uint256 _number, uint _value);
-
     enum Action {WIND, UNWIND}
 
     //UNIV2DAIUSDC - UniswapV2 DAI/USDC LP - 0.3% fee
@@ -184,9 +182,9 @@ contract Strategy is BaseStrategy {
     function estimatedTotalAssets() public view override returns (uint256) {  //measured in WANT
         return
                 balanceOfWant() //free WANT balance in wallet
-                .add(balanceOfBorrowToken().div(1e12))
+                .add(_convertBorrowTokenAmountToWant(balanceOfBorrowToken()))
                 .add(balanceOfYieldBearing().add(balanceOfMakerVault()).mul(getWantPerYieldBearing()).div(WAD))  
-                .sub(balanceOfDebt().div(1e12));  //DAI debt of maker --> WANT
+                .sub(_convertBorrowTokenAmountToWant(balanceOfDebt()));  //DAI debt of maker --> WANT
     }
 
     function prepareReturn(uint256 _debtOutstanding)
@@ -270,6 +268,10 @@ contract Strategy is BaseStrategy {
         } else {
             _liquidatedAmount = _wantAmountNeeded;
             _loss = 0;
+        }
+        //Check safety of collateralization ratio after all actions:
+        if (balanceOfMakerVault() > 0) {
+            require(getCurrentMakerVaultRatio() > collateralizationRatio.sub(lowerRebalanceTolerance), "unsafe collateralization");
         }
     }
 
@@ -411,7 +413,6 @@ contract Strategy is BaseStrategy {
         return want.balanceOf(address(this));
     }
 
-    //want=usdc
     function balanceOfBorrowToken() public view returns (uint256) {
         return borrowToken.balanceOf(address(this));
     }
@@ -479,5 +480,15 @@ contract Strategy is BaseStrategy {
             daiToMint,
             balanceOfDebt()
         );
+    }
+
+    // ----------------- TOKEN CONVERSIONS -----------------
+
+    function _convertBorrowTokenAmountToWant(uint256 _amount)
+        internal
+        view
+        returns (uint256)
+    {
+        return _amount.div(1e12);
     }
 }
