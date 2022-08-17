@@ -169,7 +169,10 @@ def weth_whale(accounts):
 
 @pytest.fixture
 def dai_whale(accounts):
-    yield accounts.at("0x47ac0fb4f2d84898e4d9e7b4dab3c24507a6d503", force=True)
+    #binance peg tokens:
+    #yield accounts.at("0x47ac0fb4f2d84898e4d9e7b4dab3c24507a6d503", force=True)
+    #binanace 8:
+    yield accounts.at("0xf977814e90da44bfa03b6295a0616a897441acec", force=True)
 
 @pytest.fixture
 def yvDAI():

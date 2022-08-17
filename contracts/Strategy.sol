@@ -12,11 +12,9 @@ import "../interfaces/yearn/IVault.sol";
 contract Strategy is BaseStrategy {
     using Address for address;
 
-    //event Debug(uint256 _number, uint _value);
-
     enum Action {WIND, UNWIND}
 
-    //UNIV2DAIUSDC - UniswapV2 DAI/USDC LP - 0.01% fee
+    //UNIV2DAIUSDC - UniswapV2 DAI/USDC LP - 0.03% fee
     IUniswapV2Pair internal constant yieldBearing = IUniswapV2Pair(0xAE461cA67B15dc8dc81CE7615e0320dA1A9aB8D5);
     bytes32 internal constant ilk_yieldBearing = 0x554e495632444149555344432d41000000000000000000000000000000000000;
     address internal constant gemJoinAdapter = 0xA81598667AC561986b70ae11bBE2dd5348ed4327;
@@ -85,7 +83,7 @@ contract Strategy is BaseStrategy {
 
         //10M$ dai or usdc maximum trade
         maxSingleTrade = 10_000_000 * 1e18;
-        //10M$ dai or usdc maximum trade
+        //0.1$ dai or usdc maximum trade
         minSingleTrade = 1 * 1e17;
 
         creditThreshold = 1e6 * 1e18;
@@ -186,9 +184,6 @@ contract Strategy is BaseStrategy {
                 balanceOfWant() //free WANT balance in wallet
                 .add(balanceOfYieldBearing().add(balanceOfMakerVault()).mul(getWantPerYieldBearing()).div(WAD))
                 .sub(balanceOfDebt());
-                //want=usdc:
-                //.add(_convertBorrowTokenAmountToWant(balanceOfBorrowToken()))  // free DAI balance in wallet --> WANT
-                //.sub(_convertBorrowTokenAmountToWant(balanceOfDebt()));  //DAI debt of maker --> WANT
     }
 
     function prepareReturn(uint256 _debtOutstanding)
@@ -274,6 +269,11 @@ contract Strategy is BaseStrategy {
             _liquidatedAmount = _wantAmountNeeded;
             _loss = 0;
         }
+        //Check safety of collateralization ratio after all actions:
+        if (balanceOfMakerVault() > 0) {
+            require(getCurrentMakerVaultRatio() > collateralizationRatio.sub(lowerRebalanceTolerance), "unsafe collateralization");
+        }
+
     }
 
     function liquidateAllPositions()
