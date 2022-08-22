@@ -23,7 +23,7 @@ def test_aauniswapV2_profit(
 
     # Swap DAI for USDC to generate fees
     other_token = Contract('0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48')    # usdc
-    swap_amount = token.balanceOf(token_whale)*0.01
+    swap_amount = token.balanceOf(token_whale)*0.001
     token.approve(unirouter.address, swap_amount, {'from': token_whale})
     router.swapExactTokensForTokens(
         swap_amount,
