@@ -479,3 +479,8 @@ def cloner(
      #   price_oracle_want_to_eth,
     )
     yield cloner
+
+
+@pytest.fixture
+def flashloan_attacker(FlashloanAttacker, vault, strategist):
+    yield FlashloanAttacker.deploy(vault.address, {'from': strategist})
