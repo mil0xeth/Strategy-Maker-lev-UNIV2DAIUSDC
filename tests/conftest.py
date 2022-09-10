@@ -174,6 +174,14 @@ def dai_whale(accounts):
     #binanace 8:
     yield accounts.at("0xf977814e90da44bfa03b6295a0616a897441acec", force=True)
 
+
+@pytest.fixture
+def usdc_whale(accounts):
+    #binance peg tokens:
+    #yield accounts.at("0x47ac0fb4f2d84898e4d9e7b4dab3c24507a6d503", force=True)
+    #binanace 8:
+    yield accounts.at("0x40ec5b33f54e0e8a33a975908c5ba1c14e5bbbdf", force=True)
+
 @pytest.fixture
 def yvDAI():
     vault_address = "0xdA816459F1AB5631232FE5e97a05BBBb94970c95"

