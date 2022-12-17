@@ -338,8 +338,13 @@ library MakerDaiDelegateLib {
         wantAmountInitial = Math.min(wantAmountInitial, balanceOfWant());
         //Calculate how much borrowToken to mint to leverage up to targetCollateralizationRatio:
         uint256 flashloanAmount = wantAmountInitial.mul(RAY).div(targetCollateralizationRatio.mul(1e9).sub(RAY));
+        //Retrieve upper max limit of flashloan:
+        uint256 flashloanMaximum = flashmint.maxFlashLoan(address(borrowToken));
+        //Cap flashloan only up to maximum allowed:
+        flashloanAmount = Math.min(flashloanAmount, flashloanMaximum);
         VatLike vat = VatLike(manager.vat());
         uint256 currentDebt = debtForCdp(cdpId, ilk_yieldBearing);
+        //Cap flashloan up to mint ceiling: 
         flashloanAmount = Math.min(flashloanAmount, _forceMintWithinLimits(vat, ilk_yieldBearing, flashloanAmount, currentDebt));
         //Check if amount of dai to borrow is above debtFloor
         if ( (currentDebt.add(flashloanAmount)) <= debtFloor(ilk_yieldBearing).add(1e15)){
@@ -357,8 +362,12 @@ library MakerDaiDelegateLib {
         if (balanceOfCdp(cdpId, ilk_yieldBearing) == 0){
             return;
         }
+        //Retrieve for upper max limit of flashloan:
+        uint256 flashloanMaximum = flashmint.maxFlashLoan(address(borrowToken));
         //Paying off the full debt it's common to experience Vat/dust reverts: we circumvent this with add 1 Wei to the amount to be paid
         uint256 flashloanAmount = debtForCdp(cdpId, ilk_yieldBearing).add(1);
+        //flashloan only up to maximum allowed:
+        flashloanAmount = Math.min(flashloanAmount, flashloanMaximum);
         bytes memory data = abi.encode(Action.UNWIND, cdpId, wantAmountRequested, flashloanAmount, targetCollateralizationRatio);
         //Always flashloan entire debt to pay off entire debt:
         _initFlashLoan(data, flashloanAmount);
@@ -379,44 +388,48 @@ library MakerDaiDelegateLib {
         );
     }
 
-    function _unwind(uint256 cdpId, uint256 flashloanRepayAmount, uint256 wantAmountRequested, uint256 targetCollateralizationRatio) public {
-        //Repay entire debt, to then take debt again later:
-        //Check allowance for repaying borrowToken Debt
-        uint256 currentDebtPlusRounding = debtForCdp(cdpId, ilk_yieldBearing).add(1);
-        _checkAllowance(daiJoinAddress(), address(borrowToken), currentDebtPlusRounding);
-        wipeAndFreeGem(gemJoinAdapter, cdpId, balanceOfCdp(cdpId, ilk_yieldBearing), currentDebtPlusRounding);
-        //All debt paid down, collateral unlocked
+    function _unwind(uint256 cdpId, uint256 flashloanAmount, uint256 flashloanRepayAmount, uint256 wantAmountRequested, uint256 targetCollateralizationRatio) public {
         //Calculate leverage+1 to know how much totalRequestedInYieldBearing to swap for borrowToken
         uint256 leveragePlusOne = (RAY.mul(WAD).div((targetCollateralizationRatio.mul(1e9).sub(RAY)))).add(WAD);
         uint256 totalRequestedInYieldBearing = wantAmountRequested.mul(leveragePlusOne).div(getWantPerYieldBearing());
-        //Maximum of all yieldBearing can be requested
-        totalRequestedInYieldBearing = Math.min(totalRequestedInYieldBearing, balanceOfYieldBearing());
-        
+        uint256 collateralBalance = balanceOfCdp(cdpId, ilk_yieldBearing);
+        //Maximum of all collateral can be requested
+        totalRequestedInYieldBearing = Math.min(totalRequestedInYieldBearing, collateralBalance);
+        //Check allowance for repaying borrowToken Debt
+        _checkAllowance(daiJoinAddress(), address(borrowToken), flashloanAmount);
+        wipeAndFreeGem(gemJoinAdapter, cdpId, totalRequestedInYieldBearing, flashloanAmount);
+        //Desired collateral amount unlocked --> swap to want
         _swapYieldBearingToWant(totalRequestedInYieldBearing);
-        //Want amount requested now in wallet
+        //----> Want amount requested now in wallet
 
-        //Lock collateral and borrow dai equivalent to amount given by targetCollateralizationRatio:
-        uint256 yieldBearingBalance = balanceOfYieldBearing();
-        uint256 borrowTokenAmountToMint = yieldBearingBalance.mul(getWantPerYieldBearing()).div(targetCollateralizationRatio);
-        //Check if amount of dai to borrow is above debtFloor. If not, swap everything to want and return.
-        if ( borrowTokenAmountToMint <= debtFloor(ilk_yieldBearing).add(1e15)){
+        //Now mint dai to repay flashloan: Rest of collateral is already locked, borrow dai equivalent to amount given by targetCollateralizationRatio:
+        collateralBalance = balanceOfCdp(cdpId, ilk_yieldBearing);
+        //In case not all debt was paid down, the remainingDebt is not 0
+        uint256 remainingDebt = debtForCdp(cdpId, ilk_yieldBearing); //necessarily less in value than collateralBalance due to overcollateralization of cdp
+        //Calculate how much more borrowToken to borrow to attain desired targetCollateralizationRatio:
+        uint256 borrowTokenAmountToMint = collateralBalance.mul(getWantPerYieldBearing()).div(targetCollateralizationRatio).sub(remainingDebt);
+
+        //Check if total borrowed amount will be above debtFloor. If not, swap everything to want and return.
+        if ( borrowTokenAmountToMint.add(remainingDebt) <= debtFloor(ilk_yieldBearing).add(1e15)){
+            wipeAndFreeGem(gemJoinAdapter, cdpId, collateralBalance, remainingDebt);
             _swapYieldBearingToWant(balanceOfYieldBearing());
-            yieldBearingBalance = balanceOfYieldBearing();
             return;
         }
+
         //Make sure to always mint enough to repay the flashloan
-        borrowTokenAmountToMint = Math.min(borrowTokenAmountToMint, flashloanRepayAmount);
-        //Check allowance to lock collateral 
-        _checkAllowance(gemJoinAdapter, address(yieldBearing), yieldBearingBalance);
+        uint256 wantBalance = balanceOfWant();
+        if (flashloanRepayAmount > wantBalance){
+            borrowTokenAmountToMint = Math.max(borrowTokenAmountToMint, flashloanRepayAmount.sub(wantBalance));
+        }
+
         //Lock collateral and mint dai to repay flashmint
         lockGemAndDraw(
             gemJoinAdapter,
             cdpId,
-            yieldBearingBalance,
+            0,
             borrowTokenAmountToMint,
-            debtForCdp(cdpId, ilk_yieldBearing)
+            remainingDebt
         );
-        //want=dai: nothing further necessary
     }
 
     //get amount of Want in Wei that is received for 1 yieldBearing
